@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+import sys
+import argparse
+from astropy.time import Time
+import astropy.units as u
+from sbpy.data import Ephem
+
+
+HORIZONS_ID_TYPES = ['smallbody', 'majorbody', 'designation',
+                     'name', 'asteroid_name', 'comet_name', 'id']
+HORIZONS_DEFAULT_QUANITIES = '1,3,8,9,19,20,23,24,36'
+
+
+def date_format(date):
+    try:
+        d = Time(date, format='jd', scale='utc')
+    except ValueError:
+        d = Time(date, scale='utc')
+    return d
+
+
+def horizons(args, opts):
+    if args.stop is None:
+        opts['epochs']['stop'] = args.start + args.number * args.step
+
+    if (args.cap or args.no_frag) and args.id_type not in ['comet_name', 'designation', 'name']:
+        raise ValueError(
+            '--cap and --no-frag requires --id-type to be one of name, comet_name, or designation.')
+
+    if opts['epochs']['step'].unit == u.year:
+        opts['epochs']['step'] = '{:.0f}y'.format(opts['epochs']['step'].value)
+    else:
+        opts['epochs']['step'] = '{:.0f}'.format(opts['epochs']['step'])
+
+    opts['closest_apparition'] = args.cap
+    opts['no_fragments'] = args.no_frag
+    opts['id_type'] = args.id_type
+    opts['quantities'] = args.quantities
+    eph = Ephem.from_horizons(args.target, **opts)
+    return eph
+
+
+def mpc(args, opts):
+    if args.format == 'hmsdms':
+        opts['ra_format'] = {'sep': ':',
+                             'unit': 'hourangle', 'precision': 1}
+        opts['dec_format'] = {'sep': ':', 'precision': 0}
+    else:
+        opts['ra_format'] = {'decimal': True,
+                             'precision': 5, 'unit': 'deg'}
+        opts['dec_format'] = {'decimal': True,
+                              'precision': 5, 'unit': 'deg'}
+
+    if opts['epochs']['step'].unit == u.year:
+        opts['epochs']['step'] = u.Quantity('365d')
+
+    eph = Ephem.from_mpc(args.target, **opts)
+    return eph
+
+
+if __name__ == '__main__':
+    now = Time.now()
+
+    parser = argparse.ArgumentParser(
+        description='SBPy ephemeris generator',
+        epilog='All dates are on the UTC scale.'
+    )
+    parser.add_argument('target', help='target name or designation')
+    parser.add_argument('--location', '--observer', default='500',
+                        help='observatory code [default 500 (geocenter)]')
+    parser.add_argument('--source', default='mpc', choices=['mpc', 'horizons'],
+                        help='ephemeris source, Minor Planet Center or JPL Horizons')
+    parser.add_argument('--start', type=date_format, default=now,
+                        help='ephemeris start date [default now]')
+    parser.add_argument('--step', type=u.Quantity, default=u.Quantity('1d'),
+                        help='ephemeris interval and unit: year, d(ay), h(our), min(ute), or s(econd) [default 1d]')
+
+    n_or_stop = parser.add_mutually_exclusive_group()
+    n_or_stop.add_argument('--stop', type=date_format,
+                           help='ephemeris stop date, incompatible with -n')
+    n_or_stop.add_argument('-n', '--number', type=int, default=20,
+                           help='number of dates to output, ignored if --stop is defined [default 20]')
+
+    parser.add_argument('--cache', action='store_true',
+                        help='use astroquery\'s cache')
+
+    mpc_args = parser.add_argument_group(
+        'mpc', 'Minor Planet Ephemeris Service options')
+    mpc_args.add_argument('--format', default='hmsdms',
+                          choices=['hmsdms', 'deg'], help='RA, Dec format.')
+
+    horizons_args = parser.add_argument_group(
+        'horizons', 'JPL Horizons options')
+    horizons_args.add_argument('--id-type', default='smallbody',
+                               choices=HORIZONS_ID_TYPES,
+                               help='type of target ID provided [default smallbody]')
+    horizons_args.add_argument('--cap', action='store_true',
+                               help='request closest apparition for comets')
+    horizons_args.add_argument('--no-frag', action='store_true',
+                               help='reject comet fragment matches')
+    horizons_args.add_argument('--quantities',
+                               default=HORIZONS_DEFAULT_QUANITIES,
+                               help='comma-separated list of columns (see https://ssd.jpl.nasa.gov/?horizons_doc#table_quantities)')
+
+    args = parser.parse_args()
+
+    # common options
+    opts = {
+        'location': args.location,
+        'epochs': {
+            'start': args.start,
+            'step': args.step,
+            'stop': args.stop,
+            'number': args.number
+        },
+        'cache': args.cache
+    }
+
+    if args.source == 'mpc':
+        eph = mpc(args, opts)
+    else:
+        eph = horizons(args, opts)
+
+    eph.table.pprint(max_lines=-1, max_width=-1)
