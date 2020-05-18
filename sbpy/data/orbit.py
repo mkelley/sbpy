@@ -17,8 +17,13 @@ from astroquery.mpc import MPC
 import astropy.units as u
 from warnings import warn
 
+try:
+    import pyoorb
+except ImportError:
+    pyoorb = None
+
 from ..bib import cite
-from ..exceptions import SbpyException
+from ..exceptions import SbpyException, RequiredPackageUnavailable
 from . import conf, DataClass, QueryError, TimeScaleWarning
 
 __all__ = ['Orbit', 'OrbitError', 'OpenOrbError']
@@ -471,7 +476,9 @@ class Orbit(DataClass):
         ------- ------------------ ------------------- ... ------- ------- ---------
         1 Ceres -1.967176101061908 -1.7891189971612211 ...    3.34    0.12        TT
         """
-        import pyoorb
+
+        if pyoorb is None:
+            raise RequiredPackageUnavailable('pyoorb')
 
         # initialize pyoorb
         if os.getenv('OORB_DATA') is None:
@@ -605,7 +612,8 @@ class Orbit(DataClass):
         ------- ----------------- ------------------- ... ------- ------- ---------
         1 Ceres 2.769331727251861 0.07605371361208543 ...    3.34    0.12       UTC        """
 
-        import pyoorb
+        if pyoorb is None:
+            raise RequiredPackageUnavailable('pyoorb')
 
         # initialize pyoorb
         if os.getenv('OORB_DATA') is None:

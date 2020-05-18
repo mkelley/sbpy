@@ -7,9 +7,17 @@ import astropy.units as u
 from astropy.time import Time
 import warnings
 
+from ... import exceptions as sbe
+from .. import orbit as sbo
 from ..orbit import Orbit, QueryError
 from ..names import TargetNameParseError
 from ... import bib
+
+try:
+    import pyoorb
+    HAS_PYOORB = True
+except ImportError:
+    HAS_PYOORB = False
 
 
 @pytest.mark.remote_data
@@ -108,77 +116,10 @@ class TestOrbitFromMPC:
 
 
 @pytest.mark.remote_data
-class TestOOTransform:
-    def test_oo_transform(self):
-        """ test oo_transform method"""
-
-        try:
-            import pyoorb
-        except ImportError:
-            return None
-
-        orbit = Orbit.from_horizons('Ceres')
-
-        cart_orbit = orbit.oo_transform('CART')
-
-        kep_orbit = cart_orbit.oo_transform('KEP')
-        u.isclose(orbit['a'][0], kep_orbit['a'][0])
-        u.isclose(orbit['e'][0], kep_orbit['e'][0])
-        u.isclose(orbit['i'][0], kep_orbit['i'][0])
-        u.isclose(orbit['Omega'][0], kep_orbit['Omega'][0])
-        u.isclose(orbit['w'][0], kep_orbit['w'][0])
-        u.isclose(orbit['M'][0], kep_orbit['M'][0])
-        u.isclose(orbit['epoch'][0].utc.jd, kep_orbit['epoch'][0].utc.jd)
-
-        com_orbit = orbit.oo_transform('COM')
-        kep_orbit = com_orbit.oo_transform('KEP')
-        u.isclose(orbit['a'][0], kep_orbit['a'][0])
-        u.isclose(orbit['e'][0], kep_orbit['e'][0])
-        u.isclose(orbit['i'][0], kep_orbit['i'][0])
-        u.isclose(orbit['Omega'][0], kep_orbit['Omega'][0])
-        u.isclose(orbit['w'][0], kep_orbit['w'][0])
-        u.isclose(orbit['M'][0], kep_orbit['M'][0])
-        u.isclose(orbit['epoch'][0].utc.jd, kep_orbit['epoch'][0].utc.jd)
-
-    def test_timescales(self):
-
-        orbit = Orbit.from_horizons('Ceres')
-        orbit['epoch'] = orbit['epoch'].tdb
-
-        cart_orbit = orbit.oo_transform('CART')
-
-        kep_orbit = cart_orbit.oo_transform('KEP')
-        u.isclose(orbit['a'][0], kep_orbit['a'][0])
-        u.isclose(orbit['e'][0], kep_orbit['e'][0])
-        u.isclose(orbit['i'][0], kep_orbit['i'][0])
-        u.isclose(orbit['Omega'][0], kep_orbit['Omega'][0])
-        u.isclose(orbit['w'][0], kep_orbit['w'][0])
-        u.isclose(orbit['M'][0], kep_orbit['M'][0])
-        u.isclose(orbit['epoch'][0].utc.jd, kep_orbit['epoch'][0].utc.jd)
-
-        com_orbit = orbit.oo_transform('COM')
-        kep_orbit = com_orbit.oo_transform('KEP')
-        u.isclose(orbit['a'][0], kep_orbit['a'][0])
-        u.isclose(orbit['e'][0], kep_orbit['e'][0])
-        u.isclose(orbit['i'][0], kep_orbit['i'][0])
-        u.isclose(orbit['Omega'][0], kep_orbit['Omega'][0])
-        u.isclose(orbit['w'][0], kep_orbit['w'][0])
-        u.isclose(orbit['M'][0], kep_orbit['M'][0])
-        u.isclose(orbit['epoch'][0].utc.jd, kep_orbit['epoch'][0].utc.jd)
-
-        assert kep_orbit['epoch'].scale == 'tdb'
-
-
-@pytest.mark.remote_data
+@pytest.mark.skipif('not HAS_PYOORB')
 class TestOOPropagate:
-
     def test_oo_propagate(self):
         """ test oo_propagate method"""
-
-        try:
-            import pyoorb
-        except ImportError:
-            return None
 
         orbit = Orbit.from_horizons('Ceres')
         epoch = Time(Time.now().jd + 100, format='jd', scale='utc')
@@ -189,13 +130,7 @@ class TestOOPropagate:
 
         oo_orbit = orbit.oo_propagate(epoch)
 
-        u.isclose(oo_orbit['a'][0], future_orbit['a'][0])
-        u.isclose(oo_orbit['e'][0], future_orbit['e'][0])
-        u.isclose(oo_orbit['i'][0], future_orbit['i'][0])
-        u.isclose(oo_orbit['Omega'][0], future_orbit['Omega'][0])
-        u.isclose(oo_orbit['w'][0], future_orbit['w'][0])
-        u.isclose(oo_orbit['M'][0], future_orbit['M'][0])
-        u.isclose(oo_orbit['epoch'][0].utc.jd,
-                  future_orbit['epoch'][0].utc.jd)
-
+        elements = ['a', 'e', 'i', 'Omega', 'w', 'M']
+        assert all([u.isclose(oo_orbit[k][0], future_orbit[k][0]) for k in elements])
+        assert u.isclose(orbit['epoch'][0].utc.jd, kep_orbit['epoch'][0].utc.jd)
         assert oo_orbit['epoch'].scale == 'utc'
