@@ -2,6 +2,7 @@
 # by importing them here in conftest.py they are discoverable by py.test
 # no matter how it is invoked within the source tree.
 
+import pytest
 from astropy.version import version as astropy_version
 
 if astropy_version < '3.0':
@@ -15,8 +16,8 @@ else:
     # variables that are used for configuration.
     from astropy.tests.plugins.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
 
-## Uncomment the following line to treat all DeprecationWarnings as
-## exceptions
+# Uncomment the following line to treat all DeprecationWarnings as
+# exceptions
 # enable_deprecations_as_exceptions()
 
 # Uncomment and customize the following lines to add/remove entries from
@@ -45,3 +46,26 @@ except ImportError:
 packagename = os.path.basename(os.path.dirname(__file__))
 TESTED_VERSIONS[packagename] = version
 TESTED_VERSIONS['astropy_helpers'] = astropy_helpers_version
+
+
+# Add option to control run/skip of slow test (pytest.mark.slow)
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-slow", action="store_true", default=False, help="run slow tests"
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: mark test as slow to run")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--run-slow"):
+        # --run-slow given in cli: do not skip slow tests
+        return
+    skip_slow = pytest.mark.skip(reason="need --run-slow option to run")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip_slow)
