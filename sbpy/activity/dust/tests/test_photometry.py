@@ -6,12 +6,12 @@ import pytest
 import numpy as np
 import astropy.units as u
 import synphot
-from ..dust import *
-from ..core import CircularAperture
-from ...calib import solar_fluxd
-from ...units import VEGAmag, JMmag
-from ...data import Ephem
-from ... import photometry
+from ..photometry import Afrho, Efrho, phase_HalleyMarcus
+from ...core import CircularAperture
+from ....calib import solar_fluxd
+from ....units import VEGAmag, JMmag
+from ....data import Ephem
+from .... import photometry
 
 
 Wm2um = u.W / u.m**2 / u.um
@@ -248,7 +248,7 @@ class TestEfrho:
             * C/1996 B2: 14400 → 7180
           * Added a significant figure to Encke εfρ: 31 → 31.1.
 
-        """
+        """  # noqa: E501
         eph = dict(rh=rh * u.au, delta=delta * u.au)
         efrho = (Efrho.from_fluxd(wfb, fluxd0, rho, eph, Tscale=1.1, B=B, T=T)
                  .to('cm'))
