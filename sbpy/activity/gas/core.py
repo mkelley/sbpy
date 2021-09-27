@@ -11,7 +11,6 @@ __all__ = [
     'VectorialModel'
 ]
 
-from warnings import warn
 from abc import ABC, abstractmethod
 
 import numpy as np
