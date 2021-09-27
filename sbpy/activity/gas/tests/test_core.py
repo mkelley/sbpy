@@ -127,9 +127,11 @@ class TestHaser:
         eph = dict(delta=1 * u.au)
         parent = 1e4 * u.km
         N_avg = 2 * Haser(Q, v, parent).column_density(rho, eph)
-        rho_km = (rho * eph['delta'] * 725.24 * u.km / u.arcsec / u.au).to('km')
+        rho_km = (rho * eph['delta'] * 725.24 *
+                  u.km / u.arcsec / u.au).to('km')
         ideal = Q / v / 2 / rho_km
-        assert np.isclose(N_avg.to_value('1/m2'), ideal.to_value('1/m2'), rtol=0.001)
+        assert np.isclose(N_avg.to_value('1/m2'),
+                          ideal.to_value('1/m2'), rtol=0.001)
 
     def test_column_density(self):
         """
@@ -394,6 +396,7 @@ class TestHaser:
         with pytest.raises(sbe.RequiredPackageUnavailable):
             test._K1(1)
 
+
 class TestVectorialModel:
     def test_fragment_count(self):
         """ Compute theoretical number of fragments vs. integrated value from grid """
@@ -409,15 +412,15 @@ class TestVectorialModel:
             'tau_d': 101730 * u.s,
             'v': 1 * u.km/u.s,
             'sigma': 3e-16 * u.cm**2
-            })
+        })
         # Fragment molecule is OH
         fragment = Phys.from_dict({
             'tau_T': photo_timescale('OH') * 0.93,
             'v': 1.05 * u.km/u.s
-            })
+        })
 
         coma = VectorialModel(Q=production_rates, dt=times_at_production,
-                                  parent=parent, fragment=fragment, print_progress=True)
+                              parent=parent, fragment=fragment, print_progress=True)
 
         fragment_theory = coma.vModel['NumFragmentsTheory']
         fragment_grid = coma.vModel['NumFragmentsFromGrid']
@@ -437,16 +440,17 @@ class TestVectorialModel:
             'tau_d': 101730 * u.s,
             'v': 1 * u.km/u.s,
             'sigma': 3e-16 * u.cm**2
-            })
+        })
         # Fragment molecule is OH
         fragment = Phys.from_dict({
             'tau_T': photo_timescale('OH') * 0.93,
             'v': 1.05 * u.km/u.s
-            })
+        })
 
         coma = VectorialModel(Q=production_rates, dt=times_at_production,
-                                  parent=parent, fragment=fragment, print_progress=True)
+                              parent=parent, fragment=fragment, print_progress=True)
 
         fragment_theory = coma.vModel['NumFragmentsTheory']
-        ap = core.CircularAperture((coma.vModel['MaxRadiusOfGrid'].value) * u.m)
+        ap = core.CircularAperture(
+            (coma.vModel['MaxRadiusOfGrid'].value) * u.m)
         assert np.isclose(fragment_theory, coma.total_number(ap), rtol=0.02)

@@ -737,14 +737,14 @@ class VectorialModel(GasComa):
         self.parent = {
             'tau_T': parent['tau_T'][0].to(u.s).value,
             'tau_d': parent['tau_d'][0].to(u.s).value,
-            'v':     parent['v'][0].to(u.m/u.s).value,
+            'v': parent['v'][0].to(u.m/u.s).value,
             'sigma': parent['sigma'][0].to(u.m**2).value
         }
 
         # Same for the fragment info
         self.fragment = {
             'tau_T': fragment['tau_T'][0].to(u.s).value,
-            'v':     fragment['v'][0].to(u.m/u.s).value
+            'v': fragment['v'][0].to(u.m/u.s).value
         }
 
         # Grid settings
