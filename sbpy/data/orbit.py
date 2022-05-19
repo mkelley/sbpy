@@ -804,9 +804,9 @@ class Orbit(DataClass):
         Drummond, J. D. 1981, Icarus 45, 545
         Jopek, T. J. 1993, Icarus 106, 603
         Williams, I. P., Jopek, T. J., Rudawska, R., Tóth, J., Kornoš, L. 2019,
-            Meteoroids: Sources of Meteors on Earth and Beyond (Ryabova, G. O.,
-            Asher, D. J., Compbell-Brown M. D., eds.), Cambridge, UK: Cambridge
-            University Press, 336.
+        Meteoroids: Sources of Meteors on Earth and Beyond (Ryabova, G. O.,
+        Asher, D. J., Compbell-Brown M. D., eds.), Cambridge, UK: Cambridge
+        University Press, 336.
 
 
         Examples
