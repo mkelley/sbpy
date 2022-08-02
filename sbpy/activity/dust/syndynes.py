@@ -12,12 +12,13 @@ __all__ = [
     'Syndynes',
 ]
 
-from typing import Union, Optional
+from typing import Union, Optional, Type
 
 import numpy as np
 import erfa
 from astropy.time import Time, TimeFromEpoch
 import astropy.units as u
+from astropy.coordinates import SkyCoord, BaseCoordinateFrame
 
 import sbpy.data as sbd
 from sbpy.data.ephem import Ephem
@@ -38,6 +39,9 @@ class SpiceEphemerisTime(TimeFromEpoch):
     epoch_format = 'iso'
 
 
+StateType = Type('State')
+
+
 class State:
     """Dynamical state of an asteroid, comet, dust grain, etc.
 
@@ -52,6 +56,10 @@ class State:
 
     t : ~astropy.time.Time
         Time.
+
+    frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
+        Coordinate frame for ``r`` and ``v``. Defaults to
+        `~astropy.coordinates.HeliocentricEclipticIAU76` if given as ``None``.
 
 
     Examples
@@ -68,17 +76,36 @@ class State:
 
     Notes
     -----
+
     State is internally stored in units of km, km / s, and TDB seconds past
-    J2000.0 epoch.
+    J2000.0 epoch.  The internal reference frame is
+    `~astropy.coordinates.HeliocentricEclipticIAU76` to match what JPL/Horizons
+    and the NAIF SPICE toolkit use.
 
     """
 
     @u.quantity_input
-    def __init__(self, r: u.Quantity[u.m], v: u.Quantity[u.m / u.s],
-                 t: Time) -> None:
-        self.r = r
-        self.v = v
-        self.t = t
+    def __init__(self,
+                 r: u.Quantity[u.m],
+                 v: u.Quantity[u.m / u.s],
+                 t: Time,
+                 frame: Optional[Union[BaseCoordinateFrame, str]] = None
+                 ) -> None:
+
+        if frame is None:
+            self.r = r
+            self.v = v
+            self.t = t
+        else:
+            # Let SkyCoord do the frame transformation work
+            in_coords = SkyCoord(x=r[0], y=r[1], z=r[2], v_x=v[0], v_y=v[1],
+                                 v_z=v[2], obstime=t, frame=frame,
+                                 representation_type='cartesian')
+            out_coords = in_coords.transform_to('HeliocentricEclipticIAU76')
+            self.r = u.Quantity([out_coords.x, out_coords.y, out_coords.z])
+            self.v = u.Quantity([out_coords.v_x, out_coords.v_y,
+                                 out_coords.v_z])
+            self.t = t
 
     @property
     def r(self):
@@ -108,7 +135,10 @@ class State:
 
     @classmethod
     @sbd.dataclass_input(eph=Ephem)
-    def from_ephem(cls, eph: Ephem):
+    def from_ephem(cls,
+                   eph: Ephem,
+                   frame: Optional[Union[BaseCoordinateFrame, str]] = None
+                   ) -> StateType:
         """Initialize from an ephemeris object.
 
 
@@ -116,13 +146,36 @@ class State:
         ----------
         eph : ~sbpy.data.ephem.Ephem
             Ephemeris object, must have 'time', 'x', 'y', 'z', 'vx', 'vy', and
-            'vz' fields.
+            'vz' fields, and ``Ephem.frame`` must be defined.
 
         """
 
-        r = u.Quantity([eph['x'], eph['y'], eph['z']])
-        v = u.Quantity([eph['vx'], eph['vy'], eph['vz']])
-        t = eph['date']
+        coords = SkyCoord(x=eph['x'], y=eph['y'], z=eph['z'],
+                          v_x=eph['vx'], v_y=eph['vy'], v_z=eph['vz'],
+                          obstime=t, representation_type='cartesian',
+                          frame=eph.frame)
+        return cls.from_skycoord(coords)
+
+    @classmethod
+    def from_skycoord(cls, coords: SkyCoord) -> StateType:
+        """Initialize from astropy `~astropy.coordinates.SkyCoord`.
+
+
+        Parameters
+        ----------
+        coords: ~astropy.coordinates.SkyCoord
+            The object state.  Must have position and velocity (e.g., ``x``,
+            ``y``, ``z``, ``v_x``, ``v_y``, ``v_z``), ``obstime``, and be
+            convertible to cartesian (3D) coordinates.
+
+        """
+
+        out_coords = coords.transform_to('HeliocentricEclipticIAU76')
+        out_coords.representation_type = 'cartesian'
+        r = u.Quantity([out_coords.x, out_coords.y, out_coords.z])
+        v = u.Quantity([out_coords.v_x, out_coords.v_y, out_coords.v_z])
+        t = out_coords.obstime
+        return cls(r, v, t)
 
 
 class Syndynes:
