@@ -195,7 +195,7 @@ class CometaryEnhancements(LocalPlugin):
         y0 = yc - box // 2
 
         subim = im[y0:y0 + box + 1, x0:x0 + box + 1]
-        cxy = photutils.centroid_2dg(subim)
+        cxy = photutils.centroids.centroid_2dg(subim)
         self.w.x_center.set_text('{:.2f}'.format(cxy[0] + x0))
         self.w.y_center.set_text('{:.2f}'.format(cxy[1] + y0))
 
