@@ -816,18 +816,16 @@ class Conf:
             "dimension": dimensions.angle,
         },
         # Physical properties (dependent on other properties)
-        {
-            "description": "Infrared Beaming Parameter",
-            "fieldnames": ["eta", "Eta"],
-            "provenance": ["ephem", "obs"],
-            "dimension": None,
-        },
-        {
-            "description": "Temperature",
-            "fieldnames": ["temp", "Temp", "temperature", "Temperature"],
-            "provenance": ["phys", "ephem", "obs"],
-            "dimension": dimensions.temperature,
-        },
+        {'description': 'Infrared Beaming Parameter',
+         'fieldnames': ['eta', 'Eta'],
+         'provenance': ['phys', 'obs'],
+         'dimension': None},
+        {'description': 'Temperature',
+         'fieldnames': ['temp', 'Temp', 'temperature', 'Temperature'],
+         'provenance': ['phys', 'ephem', 'obs'],
+         'dimension': dimensions.temperature},
+
+
         # Physical properties (static)
         {
             "description": "Effective Diameter",
