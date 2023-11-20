@@ -31,7 +31,7 @@ class SpiceEphemerisTime(TimeFromEpoch):
     Dynamical Time (TDB) scale is used.
 
     """
-    name = 'et'
+    name = "et"
     unit = 1.0 / erfa.DAYSEC  # in days (1 day == 86400 seconds)
     epoch_val = '2000-01-01 12:00:00'
     epoch_val2 = None
@@ -52,8 +52,18 @@ class State:
 
     Parameters
     ----------
-    coords : ~astropy.coordinates.SkyCoord
-        Requires position, velocity, and time.
+    r : ~astropy.units.Quantity
+        Position (x, y, z), shape = (3,) or (N, 3).
+
+    v : ~astropy.units.Quantity
+        Velocity (x, y, z), shape = (3,) or (N, 3).
+
+    t : ~astropy.time.Time
+        Time, a scaler or shape = (N,).
+
+    frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
+        Coordinate frame for ``r`` and ``v``. Defaults to
+        `~astropy.coordinates.HeliocentricEclipticIAU76` if given as ``None``.
 
 
     Examples
@@ -65,7 +75,7 @@ class State:
     >>> r = [1e9, 1e9, 0] * u.km
     >>> v = [0, 0, 10] * u.km / u.s
     >>> t = Time('2022-07-24', scale='tdb')
-    >>> state = State.from_vectors(r, v, t)
+    >>> state = State(r, v, t)
 
 
     Notes
@@ -78,24 +88,21 @@ class State:
 
     """
 
-    def __init__(self, coords: SkyCoord):
-        """Initialize from astropy `~astropy.coordinates.SkyCoord`.
+    def __init__(self,
+                 r: u.Quantity[u.m],
+                 v: u.Quantity[u.m / u.s],
+                 t: Time,
+                 frame: Optional[Union[BaseCoordinateFrame, str]] = None
+                ) -> None:
 
+        self._r = u.Quantity(r, "km")
+        self._v = u.Quantity(v, "km/s")
+        self._t = Time(t, format="et", scale="tdb")
 
-        Parameters
-        ----------
-        coords: ~astropy.coordinates.SkyCoord
-            The object state.  Must have position and velocity (e.g., ``x``,
-            ``y``, ``z``, ``v_x``, ``v_y``, ``v_z``), ``obstime``, and be
-            convertible to cartesian (3D) coordinates.
+        if not (self.r.shape[1] == self.v.shape[1] == self.t.shape[0]):
+            raise ValueError("Mismatch between lengths of vectors.")
 
-        """
-
-        out_coords = coords.transform_to('heliocentriceclipticiau76')
-        out_coords.representation_type = 'cartesian'
-        self.r = u.Quantity([out_coords.x, out_coords.y, out_coords.z])
-        self.v = u.Quantity([out_coords.v_x, out_coords.v_y, out_coords.v_z])
-        self.t = out_coords.obstime
+        self._frame = 'heliocentriceclipticiau76' if frame is None else frame
 
     @property
     def r(self):
@@ -105,7 +112,7 @@ class State:
     @r.setter
     @u.quantity_input
     def r(self, r: u.Quantity[u.m]):
-        self._r = r.to_value(u.km)
+        self._r = r.to_value(u.km).reshape((-1, 3))
 
     @property
     def v(self):
@@ -115,24 +122,48 @@ class State:
     @v.setter
     @u.quantity_input
     def v(self, v: u.Quantity[u.m / u.s]):
-        self._v = v.to_value(u.km / u.s)
+        self._v = v.to_value(u.km / u.s).reshape((-1, 3))
 
     @property
     def t(self):
         """Time in the internal scale and format."""
-        return Time(self._t, format='et', scale='tdb')
+        return Time(self._t, format="et", scale="tdb")
 
     @t.setter
     def t(self, t):
-        self._t = t.tdb.to_value('et')
+        self._t = t.tdb.to_value("et").reshape((-1,))
+
+    @property
+    def frame(self):
+        return self.frame
 
     @property
     def coords(self):
         """State as a `~astropy.coordinates.SkyCoords` object."""
         return SkyCoord(x=self.r[0], y=self.r[1], z=self.r[2],
                         v_x=self.v[0], v_y=self.v[1], v_z=self.v[2],
-                        obstime=self.t, frame='heliocentriceclipticiau76',
-                        representation_type='cartesian')
+                        obstime=self.t, frame="heliocentriceclipticiau76",
+                        representation_type="cartesian")
+
+    @classmethod
+    def from_skycoord(cls, coords: SkyCoord):
+        """Initialize from astropy `~astropy.coordinates.SkyCoord`.
+
+
+        Parameters
+        ----------
+        coords: ~astropy.coordinates.SkyCoord
+            The object state.  Must have position and velocity, ``obstime``, and
+            be convertible to cartesian (3D) coordinates.
+
+        """
+
+        out_coords = coords.transform_to('heliocentriceclipticiau76')
+        out_coords.representation_type = 'cartesian'
+        r: u.Quantity = u.Quantity([out_coords.x, out_coords.y, out_coords.z])
+        v: u.Quantity = u.Quantity([out_coords.v_x, out_coords.v_y, out_coords.v_z])
+        t: Time = out_coords.obstime
+        return cls.from_vectors(r, v, t)
 
     @classmethod
     @sbd.dataclass_input
@@ -153,41 +184,6 @@ class State:
                           obstime=t, representation_type='cartesian',
                           frame=eph.frame)
         return cls.from_skycoord(coords)
-
-    @classmethod
-    def from_vectors(cls,
-                     r: u.Quantity[u.m],
-                     v: u.Quantity[u.m / u.s],
-                     t: Time,
-                     frame: Optional[Union[BaseCoordinateFrame, str]] = None
-                     ) -> None:
-        """Initialize state from vectors.
-
-
-        Parameters
-        ----------
-        r : ~astropy.units.Quantity
-            Position.
-
-        v : ~astropy.units.Quantity
-            Velocity.
-
-        t : ~astropy.time.Time
-            Time.
-
-        frame : `~astropy.coordinates.BaseCoordinateFrame` class or string,
-        optional
-            Coordinate frame for ``r`` and ``v``. Defaults to
-            `~astropy.coordinates.HeliocentricEclipticIAU76` if given as
-            ``None``.
-
-        """
-
-        frame = 'heliocentriceclipticiau76' if frame is None else frame
-        coords = SkyCoord(x=r[0], y=r[1], z=r[2], v_x=v[0], v_y=v[1],
-                          v_z=v[2], obstime=t, frame=frame,
-                          representation_type='cartesian')
-        return cls(coords)
 
 
 class Syndynes:
