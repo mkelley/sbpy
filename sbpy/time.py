@@ -13,6 +13,7 @@ __all__ = [
 
 from astropy.time import TimeFromEpoch
 
+
 class SpiceEphemerisTime(TimeFromEpoch):
     """Number of seconds since J2000.0 epoch.
 
