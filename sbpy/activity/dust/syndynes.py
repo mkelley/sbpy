@@ -19,7 +19,7 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
-from .dynamics import State, RadiationPressure
+from .dynamics import State, SolarGravityAndRadiation
 
 
 class Syndynes:
@@ -54,9 +54,12 @@ class Syndynes:
 
     """
 
-    def __init__(self, source: State,
-                 betas: Optional[Union[np.ndarray, u.Quantity]],
-                 ages: Optional[u.Quantity]) -> None:
+    def __init__(
+        self,
+        source: State,
+        betas: Optional[Union[np.ndarray, u.Quantity]],
+        ages: Optional[u.Quantity],
+    ) -> None:
         if len(source) != 1:
             raise ValueError("Only one source state vector allowed.")
 
@@ -75,22 +78,24 @@ class Syndynes:
         self.initial_states: List[State] = []
         for i, age in enumerate(self.ages):
             t_i: Time = self.source.t - age
-            state = RadiationPressure.solve(self.source, t_i, 0)
+            state = SolarGravityAndRadiation.solve(self.source, t_i, 0)
             self.initial_states.append(state)
 
         logging.info("Initialized %d time steps.", self.ages.size)
-    
+
     def solve(self):
         """Generate syndynes by solving the equations of motion."""
 
         states: np.ndarray[State] = np.zeros((self.ages.size, self.betas.size), State)
         for i in range(self.ages.size):
             for j in range(self.betas.size):
-                states[i, j] = RadiationPressure.solve(self.initial_states[i],
-                                                          self.source.t,
-                                                          self.betas[j])
+                states[i, j] = SolarGravityAndRadiation.solve(
+                    self.initial_states[i], self.source.t, self.betas[j]
+                )
 
         self.syndynes: np.ndarray[State] = states
-        logging.info("Solved for %d syndynes, %d time steps each.", 
-                     self.betas.size, 
-                     self.ages.size)
+        logging.info(
+            "Solved for %d syndynes, %d time steps each.",
+            self.betas.size,
+            self.ages.size,
+        )
