@@ -13,7 +13,7 @@ __all__ = [
     "SolarGravityAndRadiation",
 ]
 
-from typing import Union, Optional, TypeVar
+from typing import Iterable, Union, Optional, TypeVar
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -97,10 +97,16 @@ class State:
             raise ValueError("Mismatch between lengths of vectors.")
 
         self.frame = "heliocentriceclipticiau76" if frame is None else frame
+        if self.frame != "heliocentriceclipticiau76":
+            raise NotImplementedError
 
     def __len__(self):
         """Number of state vectors in this object."""
-        return self._r.shape[1]
+        return self._r.shape[0]
+
+    def __getitem__(self, k: int) -> StateType:
+        """Get the state at index ``k``."""
+        return State(self.r[k], self.v[k], self.t[k], frame=self.frame)
 
     @property
     def r(self) -> u.Quantity[u.km]:
@@ -140,16 +146,39 @@ class State:
     def coords(self) -> SkyCoord:
         """State as a `~astropy.coordinates.SkyCoords` object."""
         return SkyCoord(
-            x=self.r[0],
-            y=self.r[1],
-            z=self.r[2],
-            v_x=self.v[0],
-            v_y=self.v[1],
-            v_z=self.v[2],
+            x=self.r[:, 0],
+            y=self.r[:, 1],
+            z=self.r[:, 2],
+            v_x=self.v[:, 0],
+            v_y=self.v[:, 1],
+            v_z=self.v[:, 2],
             obstime=self.t,
             frame="heliocentriceclipticiau76",
             representation_type="cartesian",
         )
+
+    @classmethod
+    def from_states(cls, states: Iterable[StateType]) -> StateType:
+        """Initialize from a list of states.
+
+        The coordinate frames must be identical.
+
+
+        Parameters
+        ----------
+        states : array
+
+        """
+
+        frames: set = set([state.frame for state in states])
+        if len(frames) != 1:
+            raise ValueError("The coordinate frames must be identical.")
+
+        r: np.ndarray = np.array([state.r[0] for state in states])
+        v: np.ndarray = np.array([state.v[0] for state in states])
+        t: Time = Time([state.t[0] for state in states])
+
+        return State(r, v, t, frame=list(frames)[0])
 
     @classmethod
     def from_skycoord(cls, coords: SkyCoord) -> StateType:
