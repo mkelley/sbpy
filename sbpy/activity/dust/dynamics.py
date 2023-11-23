@@ -220,7 +220,7 @@ class SolarGravityAndRadiation(DynamicalModel):
     solar spectrum, :math:`\rho` is the mass density of the grain (g/cm3), and
     :math:`a` is the grain radius (μm) (Burns et al. 1979).
 
-    The radiation force up to Poynting-Roberson drag is considered.
+    The radiation force including Poynting-Roberson drag is considered.
 
     """
 
@@ -243,13 +243,13 @@ class SolarGravityAndRadiation(DynamicalModel):
             next three elements are the velocity vector at time ``t``, km/s.
 
         beta : float
-            Radiation force efficiency factor: $F_{rad} / F_{gravity}$.
+            Radiation force efficiency factor: :math:`F_{rad} / F_{gravity}`.
 
 
         Returns
         -------
         dx_dt : ndarray
-            First three elements for $dr/dt$, next three for $dv/dt$.
+            First three elements for :math:`dr/dt`, next three for :math:`dv/dt`.
 
         """
 
@@ -261,14 +261,14 @@ class SolarGravityAndRadiation(DynamicalModel):
         r3 = r1 * r2
         GM_r3 = cls._GM / r3
 
-        # radiation force up to Poynting-Robertson drag
-        rhat = r / r2
-        vr_c = v * rhat / cls._C
-        betamu_r2 = beta * cls._GM / r2
+        # radiation force up to Poynting-Robertson drag, no general relativity
+        rhat = r / r1
+        vr_c = np.dot(v, rhat) / cls._C
+        betaGM_r2 = beta * cls._GM / r2
 
         dx_dt = np.empty(6)
         dx_dt[:3] = v
-        dx_dt[3:] = -r * GM_r3 + betamu_r2 * ((1 - vr_c) * rhat - v / cls._C)
+        dx_dt[3:] = -r * GM_r3 + betaGM_r2 * ((1 - vr_c) * rhat - v / cls._C)
 
         return dx_dt
 
@@ -298,7 +298,6 @@ class SolarGravityAndRadiation(DynamicalModel):
         """
 
         r = rv[:3]
-        v = rv[3:]
         r2 = (r**2).sum()
         r1 = np.sqrt(r2)
         r3 = r1 * r2

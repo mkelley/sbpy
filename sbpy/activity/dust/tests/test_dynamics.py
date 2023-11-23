@@ -71,3 +71,25 @@ class TestFreeExpansion:
 
         assert np.allclose(final.r.value, [0, 0, 1e6])
         assert np.allclose(final.v.value, [0, -1, 1])
+
+
+class TestSolarGravityAndRadiation:
+    def test_reduced_gravity(self):
+        """On short timescales compared to PR drag, radiation pressure is like a
+        reduced gravity problem."""
+
+        r1 = 1e8
+        s = np.sqrt(SolarGravityAndRadiation._GM / r1)
+
+        initial = State([0, 0, r1], [0, s, 0], Time("2023-01-01"))
+        t_f = initial.t + 1e6 * u.s
+        beta = 0.1
+        final1 = SolarGravityAndRadiation.solve(initial, t_f, beta)
+
+        class ReducedGravity(SolarGravity):
+            _GM = (1 - beta) * SolarGravity._GM
+
+        final2 = ReducedGravity.solve(initial, t_f)
+
+        assert u.allclose(final1.r, final2.r)
+        assert u.allclose(final1.v, final2.v)
