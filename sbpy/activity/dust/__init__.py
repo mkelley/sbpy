@@ -7,4 +7,5 @@ All things comet dust related.
 
 """
 
-from .comae import *
+
+from .core import *

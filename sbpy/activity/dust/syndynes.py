@@ -29,14 +29,16 @@ class Syndynes:
     Dust is parameterized with ``beta``, the ratio of the force from solar
     radiation pressure (:math:`F_r`) to that from solar gravity (:math:`F_g`):
 
-    .. math:: \beta = \frac{F_r}{F_g}
+    .. math::
+        \\beta = \\frac{F_r}{F_g}
 
     For spherical dust grains, ``beta`` reduces to:
 
-    .. math:: \beta = \frac{0.57 Q_{pr}}{\rho a}
+    .. math::
+        \\beta = \\frac{0.57 Q_{pr}}{\\rho a}
 
     where :math:`Q_{pr}` is the radiation pressure efficiency averaged over the
-    solar spectrum, :math:`\rho` is the mass density of the grain (g/cm3), and
+    solar spectrum, :math:`\\rho` is the mass density of the grain (g/cm3), and
     :math:`a` is the grain radius (μm) (Burns et al. 1979).
 
 

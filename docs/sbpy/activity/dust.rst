@@ -1,10 +1,11 @@
-Dust comae (`sbpy.activity.dust`)
-=================================
+Cometary dust (`sbpy.activity.dust`)
+====================================
 
-*Afρ* and *εfρ*
----------------
 
-`sbpy` has two classes to support observations and models of a coma continuum: `~sbpy.activity.dust.Afrho` and `~sbpy.activity.dust.Efrho`.
+*Afρ* and *εfρ* models
+----------------------
+
+`sbpy` has two classes to support observations and models of a coma continuum: `~sbpy.activity.dust.afrho.Afrho` and `~sbpy.activity.dust.afrho.Efrho`.
 
 The *Afρ* parameter of A'Hearn et al (1984) is based on observations of idealized cometary dust comae.  It is proportional to the observed flux density within a circular aperture.  The quantity is the product of dust albedo, dust filling factor, and the radius of the aperture at the distance of the comet.  It carries the units of *ρ* (length), and under certain assumptions is proportional to the dust production rate of the comet:
 
@@ -195,5 +196,11 @@ Other apertures may be used, as long as they can be converted into an equivalent
 
 Reference/API
 -------------
-.. automodapi:: sbpy.activity.dust
+.. automodapi:: sbpy.activity.dust.core
+   :no-heading:
+
+.. automodapi:: sbpy.activity.dust.dynamics
+   :no-heading:
+
+.. automodapi:: sbpy.activity.dust.syndynes
    :no-heading:
