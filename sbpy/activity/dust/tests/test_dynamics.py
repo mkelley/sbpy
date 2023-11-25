@@ -13,7 +13,7 @@ from ..dynamics import (
     State,
     FreeExpansion,
     SolarGravity,
-    SolarGravityAndRadiation,
+    SolarGravityAndRadiationPressure,
     SolverFailed,
 )
 
@@ -221,16 +221,15 @@ class TestFreeExpansion:
 
 class TestSolarGravityAndRadiation:
     def test_reduced_gravity(self):
-        """On short timescales compared to PR drag, radiation pressure is like a
-        reduced gravity problem."""
+        """Radiation pressure is essentially a reduced gravity problem."""
 
         r1 = 1e8
-        s = np.sqrt(SolarGravityAndRadiation._GM / r1)
+        s = np.sqrt(SolarGravityAndRadiationPressure._GM / r1)
 
         initial = State([0, 0, r1], [0, s, 0], Time("2023-01-01"))
         t_f = initial.t + 1e6 * u.s
         beta = 0.1
-        final1 = SolarGravityAndRadiation.solve(initial, t_f, beta)
+        final1 = SolarGravityAndRadiationPressure.solve(initial, t_f, beta)
 
         class ReducedGravity(SolarGravity):
             _GM = (1 - beta) * SolarGravity._GM

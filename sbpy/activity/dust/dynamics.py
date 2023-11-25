@@ -10,7 +10,7 @@ Dust dynamical models.
 __all__ = [
     "FreeExpansion",
     "SolarGravity",
-    "SolarGravityAndRadiation",
+    "SolarGravityAndRadiationPressure",
 ]
 
 from typing import Iterable, Union, Optional, TypeVar
@@ -232,7 +232,7 @@ class DynamicalModel:
     """Super-class for dynamical models."""
 
 
-class SolarGravityAndRadiation(DynamicalModel):
+class SolarGravityAndRadiationPressure(DynamicalModel):
     """Solve equations of motion considering radiation force.
 
 
@@ -251,12 +251,12 @@ class SolarGravityAndRadiation(DynamicalModel):
     solar spectrum, :math:`\\rho` is the mass density of the grain (g/cm3), and
     :math:`a` is the grain radius (μm) (Burns et al. 1979).
 
-    The radiation force including Poynting-Roberson drag is considered.
+    Only Newtonian gravity and radiation pressure are considered.
+    Poynting-Roberston drag and general relativity are not included.
 
     """
 
     # Constants for quick reference
-    _C: float = const.c.to_value("km/s")
     _GM: float = (const.G * const.M_sun).to_value("km3/s2")
 
     @classmethod
@@ -289,17 +289,12 @@ class SolarGravityAndRadiation(DynamicalModel):
 
         r2 = (r**2).sum()
         r1 = np.sqrt(r2)
-        r3 = r1 * r2
-        GM_r3 = cls._GM / r3
-
-        # radiation force up to Poynting-Robertson drag, no general relativity
-        rhat = r / r1
-        vr_c = np.dot(v, rhat) / cls._C
-        betaGM_r2 = beta * cls._GM / r2
+        r3 = r2 * r1
+        GM_r3 = cls._GM / r3 * (1 - beta)
 
         dx_dt = np.empty(6)
         dx_dt[:3] = v
-        dx_dt[3:] = -r * GM_r3 + betaGM_r2 * ((1 - vr_c) * rhat - v / cls._C)
+        dx_dt[3:] = -r * GM_r3
 
         return dx_dt
 
@@ -324,7 +319,8 @@ class SolarGravityAndRadiation(DynamicalModel):
         Returns
         -------
         df_drv : ndarray
-            First three elements for $df/dr$, next three for :math:`df/dv`.
+            First three elements for :math:`df/dr`, next three for
+            :math:`df/dv`.
 
         """
 
@@ -362,7 +358,7 @@ class SolarGravityAndRadiation(DynamicalModel):
         initial: State,
         t_f: Time,
         beta: float,
-        max_step: Optional[u.Quantity[u.s]] = None,
+        **kwargs,
     ) -> State:
         """Solve the equations of motion for a single particle.
 
@@ -378,8 +374,10 @@ class SolarGravityAndRadiation(DynamicalModel):
         beta : float
             Radiation pressure efficiency factor.
 
-        max_step : `astropy.units.Quantity`, optional
-            Maximum integration step size.
+        **kwargs
+            Keyword arguments for `scipy.integrate.solve_ivp`.  Units are
+            seconds, km, and km/s, e.g., `max_step` is a float value in units of
+            seconds.
 
 
         Returns
@@ -389,32 +387,24 @@ class SolarGravityAndRadiation(DynamicalModel):
         """
 
         final = State([0, 0, 0], [0, 0, 0], t_f, frame=initial.frame)
+        jac_sparsity: np.ndarray = np.zeros((6, 6))
+        jac_sparsity[0, 3:] = 1
+        jac_sparsity[3:, :3] = 1
 
-        # if cls._GM > 0:
-        #     # period for a circular orbit at this distance
-        #     r1: float = np.sqrt(np.sum(initial.r.value**2))
-        #     s: float = np.sqrt(cls._GM / r1)
-        #     period0: float = 2 * np.pi * r1 / s
-        #     max_step = period0 / 100 if max_step is None else max_step.to_value("s")
-        # else:
-        #     max_step = np.inf
-
-        # jac_sparsity: np.ndarray = np.zeros((6, 6))
-        # jac_sparsity[0, 3:] = 1
-        # jac_sparsity[3:, :3] = 1
+        ivp_kwargs = dict(
+            rtol=1e-6,
+            jac=cls.df_drv,
+            jac_sparsity=jac_sparsity,  # not used for all methods
+            method="Radau",
+        )
+        ivp_kwargs.update(kwargs)
 
         result = solve_ivp(
             cls.dx_dt,
             (initial.t.et[0], final.t.et[0]),
             initial.rv[0],
             args=(beta,),
-            rtol=1e-6,
-            jac=cls.df_drv,
-            # jac_sparsity=jac_sparsity,
-            #            max_step=max_step,
-            method="Radau",
-            # max_step=max_step,
-            # method="DOP853",
+            **ivp_kwargs,
         )
 
         if not result.success:
@@ -425,13 +415,11 @@ class SolarGravityAndRadiation(DynamicalModel):
         return final
 
 
-class SolarGravity(SolarGravityAndRadiation):
+class SolarGravity(SolarGravityAndRadiationPressure):
     """Solve equations of motion for a particle orbiting the Sun."""
 
     @classmethod
-    def solve(
-        cls, initial: State, t_f: Time, max_step: Optional[u.Quantity[u.s]] = None
-    ) -> State:
+    def solve(cls, initial: State, t_f: Time) -> State:
         """Solve the equations of motion for a single particle.
 
 
@@ -443,16 +431,13 @@ class SolarGravity(SolarGravityAndRadiation):
         t_f : Time
             Time at which the solution is desired.
 
-        max_step : `astropy.units.Quantity`, optional
-            Maximum integration step size.
-
         Returns
         -------
         final : State
 
         """
 
-        return super().solve(initial, t_f, 0, max_step=max_step)
+        return super().solve(initial, t_f, 0)
 
 
 class FreeExpansion(SolarGravity):

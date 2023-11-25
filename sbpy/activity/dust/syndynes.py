@@ -20,7 +20,7 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 
-from .dynamics import State, SolarGravity, SolarGravityAndRadiation
+from .dynamics import State, SolarGravity, SolarGravityAndRadiationPressure
 
 
 class Syndynes:
@@ -103,7 +103,7 @@ class Syndynes:
         t0: float = time.monotonic()
         for i in range(self.betas.size):
             for j in range(self.ages.size):
-                state: State = SolarGravityAndRadiation.solve(
+                state: State = SolarGravityAndRadiationPressure.solve(
                     self.initial_states[j], self.source.t, self.betas[i]
                 )
                 self.r[i, j] = state.r
