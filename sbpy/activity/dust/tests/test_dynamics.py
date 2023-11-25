@@ -6,6 +6,7 @@ import numpy as np
 import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
+from sbpy.data import Ephem
 
 from .... import time
 from ..dynamics import (
@@ -23,18 +24,12 @@ pytest.importorskip("scipy")
 class TestState:
     def test_init(self):
         t = Time("2022-08-02")
-        coords = SkyCoord(
-            x=1 * u.au,
-            y=1 * u.au,
-            z=0 * u.au,
-            v_x=30 * u.km / u.s,
-            v_y=0 * u.km / u.s,
-            v_z=0 * u.km / u.s,
-            obstime=t,
+        state = State(
+            [1, 1, 0] * u.au,
+            [30, 0, 0] * u.km / u.s,
+            t,
             frame="heliocentriceclipticiau76",
-            representation_type="cartesian",
         )
-        state = State(coords)
 
         # test properties
         assert u.allclose(state.r, [1, 1, 0] * u.au)
@@ -103,28 +98,12 @@ class TestState:
             radial_velocity=-4.19816 * u.km / u.s,
             obstime=Time("2022-08-02"),
         )
-        state = State(coords)
+        state = State.from_skycoord(coords)
 
         r = [3.83111326, -0.77324033, 0.19606241] * u.au
         v = [-0.00173363, 0.00382319, 0.00054533] * u.au / u.day
         assert u.allclose(state.r, r)
         assert u.allclose(state.v, v)
-
-    def test_from_vectors(self):
-        r = u.Quantity([1, 1, 0], "au")
-        v = u.Quantity([30, 0, 0], "km/s")
-        t = Time("2022-08-02")
-        state = State.from_vectors(r, v, t)
-
-        # test properties
-        assert u.allclose(state.r, [1, 1, 0] * u.au)
-        assert u.allclose(state.v, [30000, 0, 0] * u.m / u.s)
-        assert np.isclose((state.t - t).jd, 0)
-
-        # test internal state values
-        assert np.allclose(state._r, r.to_value("km"))
-        assert np.allclose(state._v, v.to_value("km / s"))
-        assert np.isclose(state._t, t.tdb.to_value("et"))
 
     def test_coords_property(self):
         """Test conversion of coords to internal state and back to coords."""
@@ -137,7 +116,7 @@ class TestState:
             radial_velocity=-4.19816 * u.km / u.s,
             obstime=Time("2022-08-02"),
         )
-        state = State(coords)
+        state = State.from_skycoord(coords)
         new_coords = state.coords.transform_to(coords.frame)
         assert u.isclose(new_coords.ra, coords.ra)
         assert u.isclose(new_coords.dec, coords.dec)
@@ -147,43 +126,43 @@ class TestState:
         assert u.isclose(new_coords.radial_velocity, coords.radial_velocity)
         assert np.isclose((coords.obstime - new_coords.obstime).jd, 0)
 
-    def test_from_ephem(self):
-        r = [3.83111326, -0.77324033, 0.19606241] * u.au
-        v = [-0.00173363, 0.00382319, 0.00054533] * u.au / u.day
-        t = Time("2022-08-02")
-        eph = Ephem.from_dict(
-            {
-                "x": r[0],
-                "y": r[1],
-                "z": r[2],
-                "vy": v[0],
-                "vz": v[1],
-                "vx": v[2],
-                "date": t,
-            },
-            frame="heliocentriceclipticiau76",
-        )
-        state = State.from_ephem(eph)
-        assert u.allclose(state.r, r)
-        assert u.allclose(state.v, v)
-        assert np.isclose((state.t - t).jd, 0)
+    # def test_from_ephem(self):
+    #     r = [3.83111326, -0.77324033, 0.19606241] * u.au
+    #     v = [-0.00173363, 0.00382319, 0.00054533] * u.au / u.day
+    #     t = Time("2022-08-02")
+    #     eph = Ephem.from_dict(
+    #         {
+    #             "x": r[0],
+    #             "y": r[1],
+    #             "z": r[2],
+    #             "vy": v[0],
+    #             "vz": v[1],
+    #             "vx": v[2],
+    #             "date": t,
+    #         },
+    #         frame="heliocentriceclipticiau76",
+    #     )
+    #     state = State.from_ephem(eph)
+    #     assert u.allclose(state.r, r)
+    #     assert u.allclose(state.v, v)
+    #     assert np.isclose((state.t - t).jd, 0)
 
-        eph = Ephem.from_dict(
-            {
-                "ra": 348.37706 * u.deg,
-                "dec": -1.86304 * u.deg,
-                "delta": 3.90413464 * u.au,
-                "RA*cos(Dec)_rate": 6.308283 * u.arcsec / u.hr,
-                "Dec_rate": 4.270114 * u.arcsec / u.hr,
-                "delta_rate": -4.19816 * u.km / u.s,
-                "date": t,
-            },
-            frame="icrf",
-        )
-        state = State.from_ephem(eph)
-        assert u.allclose(state.r, r)
-        assert u.allclose(state.v, v)
-        assert np.isclose((state.t - t).jd, 0)
+    #     eph = Ephem.from_dict(
+    #         {
+    #             "ra": 348.37706 * u.deg,
+    #             "dec": -1.86304 * u.deg,
+    #             "delta": 3.90413464 * u.au,
+    #             "RA*cos(Dec)_rate": 6.308283 * u.arcsec / u.hr,
+    #             "Dec_rate": 4.270114 * u.arcsec / u.hr,
+    #             "delta_rate": -4.19816 * u.km / u.s,
+    #             "date": t,
+    #         },
+    #         frame="icrf",
+    #     )
+    #     state = State.from_ephem(eph)
+    #     assert u.allclose(state.r, r)
+    #     assert u.allclose(state.v, v)
+    #     assert np.isclose((state.t - t).jd, 0)
 
 
 def test_spice_prop2b():

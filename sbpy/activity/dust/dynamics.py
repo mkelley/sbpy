@@ -198,7 +198,7 @@ class State:
         r: u.Quantity = u.Quantity([out_coords.x, out_coords.y, out_coords.z])
         v: u.Quantity = u.Quantity([out_coords.v_x, out_coords.v_y, out_coords.v_z])
         t: Time = out_coords.obstime
-        return cls.from_vectors(r, v, t)
+        return cls(r, v, t)
 
     @classmethod
     @sbd.dataclass_input
