@@ -390,23 +390,31 @@ class SolarGravityAndRadiation(DynamicalModel):
 
         final = State([0, 0, 0], [0, 0, 0], t_f, frame=initial.frame)
 
-        if cls._GM > 0:
-            # period for a circular orbit at this distance
-            r1: float = np.sqrt(np.sum(initial.r.value**2))
-            s: float = np.sqrt(cls._GM / r1)
-            period0: float = 2 * np.pi * r1 / s
-            max_step = period0 / 100 if max_step is None else max_step.to_value("s")
-        else:
-            max_step = np.inf
+        # if cls._GM > 0:
+        #     # period for a circular orbit at this distance
+        #     r1: float = np.sqrt(np.sum(initial.r.value**2))
+        #     s: float = np.sqrt(cls._GM / r1)
+        #     period0: float = 2 * np.pi * r1 / s
+        #     max_step = period0 / 100 if max_step is None else max_step.to_value("s")
+        # else:
+        #     max_step = np.inf
+
+        # jac_sparsity: np.ndarray = np.zeros((6, 6))
+        # jac_sparsity[0, 3:] = 1
+        # jac_sparsity[3:, :3] = 1
 
         result = solve_ivp(
             cls.dx_dt,
             (initial.t.et[0], final.t.et[0]),
             initial.rv[0],
             args=(beta,),
+            rtol=1e-6,
             jac=cls.df_drv,
-            max_step=max_step,
+            # jac_sparsity=jac_sparsity,
+            #            max_step=max_step,
             method="Radau",
+            # max_step=max_step,
+            # method="DOP853",
         )
 
         if not result.success:
