@@ -362,6 +362,10 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
     ) -> State:
         """Solve the equations of motion for a single particle.
 
+        The solution is calculated with `scipy.integrate.solve_ivp`.  The
+        default parameters are tuned for precision, but your requirements may
+        need different values.
+
 
         Parameters
         ----------
@@ -376,8 +380,10 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
 
         **kwargs
             Keyword arguments for `scipy.integrate.solve_ivp`.  Units are
-            seconds, km, and km/s, e.g., `max_step` is a float value in units of
-            seconds.
+            seconds, km, and km/s, e.g., ``max_step`` is a float value in units
+            of seconds.  For relative and absolute tolerance keywords, ``rtol``
+            and ``atol``, 6-element arrays may be used, where the first three
+            elements are for position, and the last three are for velocity.
 
 
         Returns
@@ -392,10 +398,11 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
         jac_sparsity[3:, :3] = 1
 
         ivp_kwargs = dict(
-            rtol=1e-6,
+            rtol=1e-8,
+            atol=[1e-4, 1e-4, 1e-4, 1e-10, 1e-10, 1e-10],
             jac=cls.df_drv,
             jac_sparsity=jac_sparsity,  # not used for all methods
-            method="Radau",
+            method="LSODA",
         )
         ivp_kwargs.update(kwargs)
 

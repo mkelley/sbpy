@@ -198,12 +198,36 @@ def test_spice_prop2b():
     assert np.allclose(final.v.value, [0, 0.04464, -0.04464], atol=0.00001)
 
     t_f = initial.t + 5 * half_period * u.s
-    final = EarthGravity.solve(initial, t_f, max_step=1e8 * u.s)
+    final = EarthGravity.solve(initial, t_f)
 
     assert np.allclose(initial.r.value, [0, 70710678.11865, 70710678.11865])
     assert np.allclose(initial.v.value, [0, -0.04464, 0.04464], atol=0.00001)
     assert np.allclose(final.r.value, [0, -70710678.11865, -70710678.11865])
     assert np.allclose(final.v.value, [0, 0.04464, -0.04464], atol=0.00001)
+
+
+class TestSolarGravity:
+    @pytest.mark.parametrize("r1_au", ([0.3, 1, 3, 10, 30]))
+    def test_circular_orbit(self, r1_au):
+        r1 = r1_au * u.au.to("km")
+        s = np.sqrt(SolarGravity._GM / r1)
+        half_period = np.pi * r1 / s
+
+        r = [0, r1 / np.sqrt(2), r1 / np.sqrt(2)]
+        v = [0, -s / np.sqrt(2), s / np.sqrt(2)]
+
+        initial = State(r, v, Time("2023-01-01"))
+        t_f = initial.t + half_period * u.s
+        final = SolarGravity.solve(initial, t_f)
+
+        assert np.allclose(final.r.value, -initial.r.value)
+        assert np.allclose(final.v.value, -initial.v.value)
+
+        t_f = initial.t + 2 * half_period * u.s
+        final = SolarGravity.solve(initial, t_f)
+
+        assert np.allclose(final.r.value, initial.r.value)
+        assert np.allclose(final.v.value, initial.v.value)
 
 
 class TestFreeExpansion:
@@ -215,7 +239,7 @@ class TestFreeExpansion:
         t_f = initial.t + 1e6 * u.s
         final = FreeExpansion.solve(initial, t_f)
 
-        assert np.allclose(final.r.value, [0, 0, 1e6])
+        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
         assert np.allclose(final.v.value, [0, -1, 1])
 
 
