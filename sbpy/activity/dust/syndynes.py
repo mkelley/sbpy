@@ -13,12 +13,17 @@ __all__ = [
 
 import time
 import logging
-from typing import List, Union, Optional
+from typing import Iterable, List, Tuple, Union, Optional
 
 import numpy as np
 
 import astropy.units as u
 from astropy.time import Time
+from astropy.coordinates import (
+    BaseCoordinateFrame,
+    SkyCoord,
+    get_body_barycentric_posvel,
+)
 
 from .dynamics import State, SolarGravity, SolarGravityAndRadiationPressure
 
@@ -55,27 +60,62 @@ class Syndynes:
     ages : ~astropy.units.Quantity, optional
         Array of particle ages (time).
 
+    observer : State, optional
+        State vector of the observer in the same reference frame as ``source``.
+        Default is the Earth obtained via ``astropy.coordinates.get_body``.
+
     """
 
     def __init__(
         self,
         source: State,
-        betas: Optional[Union[np.ndarray, u.Quantity]],
-        ages: Optional[u.Quantity],
+        betas: Union[Iterable, u.Quantity[u.dimensionless_unscaled]],
+        ages: u.Quantity[u.s],
+        observer: Optional[State] = None,
     ) -> None:
         if len(source) != 1:
             raise ValueError("Only one source state vector allowed.")
 
         self.source: State = source
-        self.betas: u.Quantity[""] = u.Quantity(betas, "").reshape((-1,))
-        self.ages: u.Quantity["s"] = u.Quantity(ages, "s").reshape((-1,))
+        self.betas: u.Quantity[u.dimensionless_unscaled] = u.Quantity(
+            betas, ""
+        ).reshape((-1,))
+        self.ages: u.Quantity[u.s] = u.Quantity(ages, "s").reshape((-1,))
+
+        self.observer: State
+        if observer is None:
+            # use the Earth
+            r_e: SkyCoord
+            v_e: SkyCoord
+            t: Time = source.t.reshape(())
+            r_e, v_e = get_body_barycentric_posvel("earth", t)
+            self.observer = State.from_skycoord(
+                SkyCoord(
+                    x=r_e.x,
+                    y=r_e.y,
+                    z=r_e.z,
+                    v_x=v_e.x,
+                    v_y=v_e.y,
+                    v_z=v_e.z,
+                    obstime=t,
+                    frame="icrs",
+                    representation_type="cartesian",
+                )
+            )
+            # self.observer = State.from_skycoord(
+            #     get_body("earth", source.t).transform_to(source.frame)
+            # )
+        elif observer.frame != source.frame:
+            raise ValueError("source and observer frames are not equal.")
+        else:
+            self.observer = observer
 
         self.solve()
 
     def __repr__(self) -> str:
         return f"<Syndynes: {len(self.betas)} beta values, {len(self.ages)} time steps>"
 
-    def initialize_states(self) -> None:
+    def _initialize_states(self) -> None:
         """Generate the initial particle states."""
 
         # integrate from observation time, t_f, back to t_i
@@ -97,17 +137,19 @@ class Syndynes:
 
         logger: logging.Logger = logging.getLogger()
 
-        self.initialize_states()
+        self._initialize_states()
 
-        self.r: np.ndarray = np.zeros((self.betas.size, self.ages.size, 3))
+        particles: List[State] = []
         t0: float = time.monotonic()
         for i in range(self.betas.size):
             for j in range(self.ages.size):
-                state: State = SolarGravityAndRadiationPressure.solve(
-                    self.initial_states[j], self.source.t, self.betas[i]
+                particles.append(
+                    SolarGravityAndRadiationPressure.solve(
+                        self.initial_states[j], self.source.t, self.betas[i]
+                    )
                 )
-                self.r[i, j] = state.r
         t1: float = time.monotonic()
+        self.particles = State.from_states(particles)
 
         logger.info(
             "Solved for %d syndynes, %d time steps each.",
@@ -120,15 +162,25 @@ class Syndynes:
     def syndynes(self):
         """Iterator for each syndyne."""
 
-        for i in range(self.betas.size):
-            yield self.r[i]
+        n: int = self.ages.size
+        i: int
+        beta: float
+        for i, beta in enumerate(self.betas):
+            syn = self.particles[i * n : i + n]
+            coords = syn.observe(self.observer)
+            yield beta, syn, coords
 
     @property
     def synchrones(self):
         """Iterator for each synchrone."""
 
-        for i in range(self.ages.size):
-            yield self.r[:, i]
+        n: int = self.betas.size
+        i: int
+        age: u.Quantity[u.s]
+        for i, age in enumerate(self.ages):
+            syn = self.particles[i::n]
+            coords = syn.observe(self.observer)
+            yield age, syn, coords
 
     def get_syndyne(self, beta: float) -> np.ndarray:
         """Get the positions of a single syndyne.
@@ -179,3 +231,6 @@ class Syndynes:
             raise ValueError(f"Age not found: {age}")
 
         return self.r[:, i]
+
+    def get_orbit(self, ages: u.Quantity[u.s]) -> Tuple[State, SkyCoord]:
+        pass

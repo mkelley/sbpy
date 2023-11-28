@@ -89,6 +89,7 @@ class TestState:
 
         """
 
+        # barycentric coordinates
         coords = SkyCoord(
             ra=348.37706 * u.deg,
             dec=-1.86304 * u.deg,
@@ -100,6 +101,7 @@ class TestState:
         )
         state = State.from_skycoord(coords)
 
+        # heliocentric vectors
         r = [3.83111326, -0.77324033, 0.19606241] * u.au
         v = [-0.00173363, 0.00382319, 0.00054533] * u.au / u.day
         assert u.allclose(state.r, r)
