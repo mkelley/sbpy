@@ -175,7 +175,7 @@ class State:
 
     @property
     def t(self) -> Time:
-        """Time in the internal scale and format."""
+        """Time."""
         return Time(self._t, format="et", scale="tdb")
 
     @t.setter
@@ -197,7 +197,7 @@ class State:
             representation_type="cartesian",
         )
 
-    def observe(self, target: StateType, frame: Optional[FrameType]=None) -> SkyCoord:
+    def observe(self, target: StateType, frame: Optional[FrameType] = None) -> SkyCoord:
         """Project a target's position on to the sky.
 
 
@@ -499,15 +499,11 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
         """
 
         final = State([0, 0, 0], [0, 0, 0], t_f, frame=initial.frame)
-        # jac_sparsity: np.ndarray = np.zeros((6, 6))
-        # jac_sparsity[0, 3:] = 1
-        # jac_sparsity[3:, :3] = 1
 
         ivp_kwargs = dict(
             rtol=1e-8,
             atol=[1e-4, 1e-4, 1e-4, 1e-10, 1e-10, 1e-10],
             jac=cls.df_drv,
-            # jac_sparsity=jac_sparsity,  # not used for all methods
             method="LSODA",
         )
         ivp_kwargs.update(kwargs)
