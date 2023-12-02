@@ -19,7 +19,7 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
 
-from .dynamics import FrameType, State, SolarGravity, SolarGravityAndRadiationPressure
+from .dynamics import FrameType, State, DynamicalModel, SolarGravityAndRadiationPressure
 
 
 class Syndynes:
@@ -58,6 +58,8 @@ class Syndynes:
     observer : State, optional
         State vector of the observer in the same reference frame as ``source``.
 
+    solver : `~sbpy.activity.dust.dynamics.DynamicalModel`, optional
+
     """
 
     def __init__(
@@ -66,6 +68,7 @@ class Syndynes:
         betas: Union[Iterable, u.Quantity[u.dimensionless_unscaled]],
         ages: u.Quantity[u.s],
         observer: Optional[State] = None,
+        solver: Optional[DynamicalModel] = SolarGravityAndRadiationPressure,
     ) -> None:
         if len(source) != 1:
             raise ValueError("Only one source state vector allowed.")
@@ -84,18 +87,20 @@ class Syndynes:
                 raise ValueError("source and observer frames are not equal.")
             self.observer = observer
 
-        self.solve()
+        self.solver = solver
+
+        self.initialize_states()
 
     def __repr__(self) -> str:
         return f"<Syndynes:\n betas\n    {self.betas}\n ages\n    {self.ages}>"
 
-    def _initialize_states(self) -> None:
+    def initialize_states(self) -> None:
         """Generate the initial particle states."""
 
         states: List[State] = []
-        for i, age in enumerate(self.ages):
+        for age in self.ages:
             t_i: Time = self.source.t - age
-            state = SolarGravity.solve(self.source, t_i)
+            state = self.solver.solve(self.source, t_i, 0)
             states.append(state)
 
         self.initial_states = State.from_states(states)
@@ -108,14 +113,12 @@ class Syndynes:
 
         logger: logging.Logger = logging.getLogger()
 
-        self._initialize_states()
-
         particles: List[State] = []
         t0: float = time.monotonic()
         for i in range(self.betas.size):
             for j in range(self.ages.size):
                 particles.append(
-                    SolarGravityAndRadiationPressure.solve(
+                    self.solver.solve(
                         self.initial_states[j], self.source.t, self.betas[i]
                     )
                 )
@@ -275,7 +278,7 @@ class Syndynes:
         states: List[State] = []
         for i in range(len(dt)):
             t: Time = self.source.t - dt[i]
-            states.append(SolarGravity.solve(self.source, t))
+            states.append(self.solver.solve(self.source, t, 0))
 
         states: State = State.from_states(states)
         coords: SkyCoord = (
