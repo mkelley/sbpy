@@ -35,6 +35,7 @@ class SolverFailed(SbpyException):
 
 
 StateType = TypeVar("StateType", bound="State")
+FrameType = TypeVar("FrameType", str, BaseCoordinateFrame)
 
 
 class State:
@@ -47,14 +48,14 @@ class State:
 
     Parameters
     ----------
-    r : ~astropy.units.Quantity
+    r : `~astropy.units.Quantity`
         Position (x, y, z), shape = (3,) or (N, 3).
 
-    v : ~astropy.units.Quantity
+    v : `~astropy.units.Quantity`
         Velocity (x, y, z), shape = (3,) or (N, 3).
 
-    t : ~astropy.time.Time
-        Time, a scaler or shape = (N,).
+    t : `~astropy.time.Time`
+        Time, a scalar or shape = (N,).
 
     frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
         Coordinate frame for ``r`` and ``v``. Defaults to
@@ -86,27 +87,18 @@ class State:
         r: u.Quantity[u.m],
         v: u.Quantity[u.m / u.s],
         t: Time,
-        frame: Optional[Union[BaseCoordinateFrame, str]] = None,
+        frame: Optional[FrameType] = None,
     ) -> None:
         self.r = u.Quantity(r, "km")
         self.v = u.Quantity(v, "km/s")
-        self.t = Time(t, format="et", scale="tdb")
+        self.t = Time([t] * len(self)) if t.ndim == 0 else t
+        self.frame = frame
 
         if (self.r.shape != self.v.shape) or (len(self) != len(self.t)):
             raise ValueError("Mismatch between lengths of vectors.")
 
-        # use astropy to convert between reference frames
-        self.r = SkyCoord(
-            x=self.r[..., 0],
-            y=self.r[..., 1],
-            z=self.r[..., 2],
-            v_x=self.v[..., 0],
-            v_y=self.v[..., 1],
-            v_z=self.v[..., 2],
-            obstime=self.t,
-            frame="heliocentriceclipticiau76" if frame is None else frame,
-            representation_type="cartesian",
-        )
+    def __repr__(self) -> str:
+        return f"<{type(self).__name__} ({self.frame}):\n r\n    {self.r}\nv\n    {self.v}\n t\n    {self.t}>"
 
     def __len__(self):
         """Number of state vectors in this object."""
@@ -200,26 +192,50 @@ class State:
             v_x=self.v_x,
             v_y=self.v_y,
             v_z=self.v_z,
-            obstime=self.t,
+            obstime=self.t[0],
             frame=self.frame,
             representation_type="cartesian",
         )
 
-    def observe(self, observer: StateType):
-        """Observe and return a `~astropy.coordinates.SkyCoord` object."""
+    def observe(self, target: StateType, frame: Optional[FrameType]=None) -> SkyCoord:
+        """Project a target's position on to the sky.
 
-        target: State = State.from_skycoord(self.skycoord.transform_to(observer.frame))
-        return SkyCoord(
-            x=target.x - observer.x,
-            y=target.y - observer.y,
-            z=target.z - observer.z,
-            v_x=target.v_x - observer.v_x,
-            v_y=target.v_y - observer.v_y,
-            v_z=target.v_z - observer.v_z,
-            obstime=self.t,
-            frame=observer.frame,
+
+        Parameters
+        ----------
+        target : State
+            The target to observe.
+
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform the coordinates into this reference frame.
+
+
+        Returns
+        -------
+        coords : SkyCoord
+
+        """
+
+        target_in_frame: State = State.from_skycoord(
+            target.skycoord.transform_to(self.frame)
+        )
+        coords: SkyCoord = SkyCoord(
+            x=target_in_frame.x - self.x,
+            y=target_in_frame.y - self.y,
+            z=target_in_frame.z - self.z,
+            v_x=target_in_frame.v_x - self.v_x,
+            v_y=target_in_frame.v_y - self.v_y,
+            v_z=target_in_frame.v_z - self.v_z,
+            obstime=self.t[0],
+            frame=self.frame,
             representation_type="cartesian",
         )
+
+        if frame is not None:
+            coords = coords.transform_to(frame)
+
+        coords.representation_type = "spherical"
+        return coords
 
     @classmethod
     def from_states(cls, states: Iterable[StateType]) -> StateType:
@@ -234,7 +250,7 @@ class State:
 
         """
 
-        frames: set = set([state.frame for state in states])
+        frames: set = set([str(state.frame).lower() for state in states])
         if len(frames) != 1:
             raise ValueError("The coordinate frames must be identical.")
 
@@ -272,30 +288,50 @@ class State:
 
     @classmethod
     @sbd.dataclass_input
-    def from_ephem(cls, eph: Ephem) -> StateType:
+    def from_ephem(cls, eph: Ephem, frame: FrameType) -> StateType:
         """Initialize from an `~sbpy.data.Ephem` object.
 
 
         Parameters
         ----------
         eph : ~sbpy.data.ephem.Ephem
-            Ephemeris object, must have "time", "x", "y", "z", "vx", "vy", and
-            "vz" fields, and ``Ephem.frame`` must be defined.
+            Ephemeris object, must have time, position, and velocity.  Position
+            and velocity may be specified using ("x", "y", "z", "vx", "vy", and
+            "vz"), or ("ra", "dec", "Delta", "RA*cos(Dec)_rate", "Dec_rate", and
+            "rdot").
 
         """
 
-        coords = SkyCoord(
-            x=eph["x"],
-            y=eph["y"],
-            z=eph["z"],
-            v_x=eph["vx"],
-            v_y=eph["vy"],
-            v_z=eph["vz"],
-            obstime=eph["date"],
-            representation_type="cartesian",
-            frame=eph.frame,
+        t: Time = eph["date"]
+
+        rectangular = ("x", "y", "z", "vx", "vy", "vz")
+        spherical = ("ra", "dec", "Delta", "RA*cos(Dec)_rate", "Dec_rate", "rdot")
+
+        if all([x in eph for x in rectangular]):
+            r: u.Quantity[u.physical.length] = u.Quantity(
+                [eph["x"], eph["y"], eph["z"]]
+            ).T
+            v: u.Quantity[u.physical.speed] = u.Quantity(
+                [eph["vx"], eph["vy"], eph["vz"]]
+            ).T
+            return cls(r, v, eph["date"], frame=frame)
+        elif all([x in eph for x in spherical]):
+            coords: SkyCoord = SkyCoord(
+                ra=eph["ra"],
+                dec=eph["dec"],
+                distance=eph["Delta"],
+                pm_ra_cosdec=eph["RA*cos(Dec)_rate"],
+                pm_dec=eph["Dec_rate"],
+                radial_velocity=eph["rdot"],
+                obstime=eph["date"],
+                representation_type="spherical",
+                frame=frame,
+            )
+            return cls.from_skycoord(coords)
+
+        raise ValueError(
+            "`Ephem` does not have the required time, position, and/or velocity fields."
         )
-        return cls.from_skycoord(coords)
 
 
 class DynamicalModel:

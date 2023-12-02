@@ -15,17 +15,11 @@ import time
 import logging
 from typing import Iterable, List, Tuple, Union, Optional
 
-import numpy as np
-
 import astropy.units as u
 from astropy.time import Time
-from astropy.coordinates import (
-    BaseCoordinateFrame,
-    SkyCoord,
-    get_body_barycentric_posvel,
-)
+from astropy.coordinates import SkyCoord
 
-from .dynamics import State, SolarGravity, SolarGravityAndRadiationPressure
+from .dynamics import FrameType, State, SolarGravity, SolarGravityAndRadiationPressure
 
 
 class Syndynes:
@@ -52,7 +46,8 @@ class Syndynes:
     ----------
     source : State
         State vector (i.e., position and velocity at time) of the object
-        producing dust at the time of the observation.
+        producing dust at the time of the observation.  Must be with respect to
+        the central mass (e.g., the Sun).
 
     betas : ~numpy.ndarray, optional
         Array of beta-parameters to be simulated (dimensionless).
@@ -62,7 +57,6 @@ class Syndynes:
 
     observer : State, optional
         State vector of the observer in the same reference frame as ``source``.
-        Default is the Earth obtained via ``astropy.coordinates.get_body``.
 
     """
 
@@ -84,42 +78,19 @@ class Syndynes:
 
         self.observer: State
         if observer is None:
-            # use the Earth
-            r_e: SkyCoord
-            v_e: SkyCoord
-            t: Time = source.t.reshape(())
-            r_e, v_e = get_body_barycentric_posvel("earth", t)
-            self.observer = State.from_skycoord(
-                SkyCoord(
-                    x=r_e.x,
-                    y=r_e.y,
-                    z=r_e.z,
-                    v_x=v_e.x,
-                    v_y=v_e.y,
-                    v_z=v_e.z,
-                    obstime=t,
-                    frame="icrs",
-                    representation_type="cartesian",
-                )
-            )
-            # self.observer = State.from_skycoord(
-            #     get_body("earth", source.t).transform_to(source.frame)
-            # )
-        elif observer.frame != source.frame:
-            raise ValueError("source and observer frames are not equal.")
+            self.observer = None
         else:
+            if observer.frame != source.frame:
+                raise ValueError("source and observer frames are not equal.")
             self.observer = observer
 
         self.solve()
 
     def __repr__(self) -> str:
-        return f"<Syndynes: {len(self.betas)} beta values, {len(self.ages)} time steps>"
+        return f"<Syndynes:\n betas\n    {self.betas}\n ages\n    {self.ages}>"
 
     def _initialize_states(self) -> None:
         """Generate the initial particle states."""
-
-        # integrate from observation time, t_f, back to t_i
-        t_f = self.source.t.et
 
         states: List[State] = []
         for i, age in enumerate(self.ages):
@@ -133,7 +104,7 @@ class Syndynes:
         logger.info("Initialized %d time steps.", self.ages.size)
 
     def solve(self) -> None:
-        """Generate syndynes by solving the equations of motion."""
+        """Generate test particle positions by solving the equations of motion."""
 
         logger: logging.Logger = logging.getLogger()
 
@@ -158,79 +129,156 @@ class Syndynes:
         )
         logger.info(f"{(t1 - t0) / self.betas.size / self.ages.size} s/particle.")
 
-    @property
-    def syndynes(self):
-        """Iterator for each syndyne."""
+    def get_syndyne(
+        self,
+        i: int,
+        frame: Optional[FrameType] = None,
+    ) -> Tuple[float, State, SkyCoord]:
+        """Get a single syndyne.
+
+
+        Parameters
+        ----------
+        i : int
+            Index of the syndyne (same index as the `betas` array).
+
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform observer coordinates into this reference frame.
+
+
+        Returns
+        -------
+        beta : float
+            The syndyne's beta value.
+
+        syn : State
+            The particle states.
+
+        coords : SkyCoord
+            The observed coordinates.
+
+        """
 
         n: int = self.ages.size
-        i: int
-        beta: float
-        for i, beta in enumerate(self.betas):
-            syn = self.particles[i * n : i + n]
-            coords = syn.observe(self.observer)
-            yield beta, syn, coords
+        syn: State = self.particles[i * n : (i + 1) * n]
+        coords: SkyCoord = (
+            self.observer.observe(syn, frame) if self.observer is not None else None
+        )
 
-    @property
-    def synchrones(self):
-        """Iterator for each synchrone."""
+        return float(self.betas[i]), syn, coords
 
-        n: int = self.betas.size
-        i: int
-        age: u.Quantity[u.s]
-        for i, age in enumerate(self.ages):
-            syn = self.particles[i::n]
-            coords = syn.observe(self.observer)
-            yield age, syn, coords
-
-    def get_syndyne(self, beta: float) -> np.ndarray:
-        """Get the positions of a single syndyne.
+    def get_synchrone(
+        self,
+        i: int,
+        frame: Optional[FrameType] = None,
+    ) -> Tuple[u.Quantity[u.physical.time], State, SkyCoord]:
+        """Get a single synchrone.
 
 
         Parameters
         ----------
-        beta : float
-            beta-value of the syndyne to get.
+        i : int
+            Index of the synchrone (same index as the `ages` array).
+
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform observer coordinates into this reference frame.
 
 
         Returns
         -------
-        r : ndarray
-            Array of position vectors of shape (N, 3), where N is the number of
-            time steps (ages).
+        age : `astropy.units.Quantity`
+            The syndyne's age.
+
+        syn : State
+            The particle states.
+
+        coords : SkyCoord
+            The observed coordinates.
 
         """
 
-        try:
-            i = np.flatnonzero(self.betas.to_value("") == beta)[0]
-        except IndexError:
-            raise ValueError(f"beta-value not found: {beta}")
+        n: int = self.ages.size
+        # add the source to make sure the synchrones always draw back to the target
+        syn: State = State.from_states([self.source] + list(self.particles[i::n]))
+        coords: SkyCoord = (
+            self.observer.observe(syn, frame) if self.observer is not None else None
+        )
+        return self.ages[i], syn, coords
 
-        return self.r[i]
-
-    def get_synchrone(self, age: u.Quantity[u.s]) -> np.ndarray:
-        """Get the positions of a single synchrone.
+    def syndynes(
+        self, frame: Optional[FrameType] = None
+    ) -> Tuple[float, State, SkyCoord]:
+        """Iterator for each syndyne from `get_syndyne`.
 
 
         Parameters
         ----------
-        age : float
-            Age of the synchrone to get.
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform observer coordinates into this reference frame.
 
 
         Returns
         -------
-        r : ndarray
-            Array of position vectors of shape (N, 3), where N is the number of
-            beta-values.
+        iterator
+
+        """
+        for i in range(len(self.betas)):
+            yield self.get_syndyne(i, frame)
+
+    def synchrones(
+        self, frame: Optional[FrameType] = None
+    ) -> Tuple[u.Quantity[u.physical.time], State, SkyCoord]:
+        """Iterator for each synchrone from `get_synchrone`.
+
+
+        Parameters
+        ----------
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform observer coordinates into this reference frame.
+
+
+        Returns
+        -------
+        iterator
 
         """
 
-        try:
-            i = np.flatnonzero(self.ages == age)[0]
-        except IndexError:
-            raise ValueError(f"Age not found: {age}")
+        for i in range(len(self.ages)):
+            yield self.get_synchrone(i, frame)
 
-        return self.r[:, i]
+    def get_orbit(
+        self, dt: u.Quantity[u.s], frame: Optional[FrameType] = None
+    ) -> Tuple[State, SkyCoord]:
+        """Calculate and observe the orbit of the dust source.
 
-    def get_orbit(self, ages: u.Quantity[u.s]) -> Tuple[State, SkyCoord]:
-        pass
+
+        Parameters
+        ----------
+        dt : `astropy.units.Quantity`
+            The times at which to calculate the orbit, relative to the
+            observation time.
+
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform observer coordinates into this reference frame.
+
+
+        Returns
+        -------
+        orbit : State
+            The orbital states.
+
+        coords : SkyCoord
+            The observed coordinates.
+
+        """
+
+        states: List[State] = []
+        for i in range(len(dt)):
+            t: Time = self.source.t - dt[i]
+            states.append(SolarGravity.solve(self.source, t))
+
+        states: State = State.from_states(states)
+        coords: SkyCoord = (
+            self.observer.observe(states, frame) if self.observer is not None else None
+        )
+        return states, coords
