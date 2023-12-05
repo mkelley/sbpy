@@ -59,6 +59,7 @@ class Syndynes:
         State vector of the observer in the same reference frame as ``source``.
 
     solver : `~sbpy.activity.dust.dynamics.DynamicalModel`, optional
+        Solve the equations of motion with this object.
 
     """
 
@@ -68,7 +69,7 @@ class Syndynes:
         betas: Union[Iterable, u.Quantity[u.dimensionless_unscaled]],
         ages: u.Quantity[u.s],
         observer: Optional[State] = None,
-        solver: Optional[DynamicalModel] = SolarGravityAndRadiationPressure,
+        solver: Optional[DynamicalModel] = SolarGravityAndRadiationPressure(),
     ) -> None:
         if len(source) != 1:
             raise ValueError("Only one source state vector allowed.")

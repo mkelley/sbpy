@@ -9,3 +9,5 @@ All things comet dust related.
 
 
 from .core import *
+from .dynamics import *
+from .syndynes import *

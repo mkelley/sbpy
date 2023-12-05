@@ -14,7 +14,8 @@ __all__ = [
     "SolarGravityAndRadiationPressure",
 ]
 
-from typing import Iterable, Union, Optional, TypeVar
+import abc
+from typing import Iterable, Union, Optional, Tuple, TypeVar
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -98,7 +99,7 @@ class State:
             raise ValueError("Mismatch between lengths of vectors.")
 
     def __repr__(self) -> str:
-        return f"<{type(self).__name__} ({self.frame}):\n r\n    {self.r}\nv\n    {self.v}\n t\n    {self.t}>"
+        return f"<{type(self).__name__} ({self.frame}):\n r\n    {self.r}\n v\n    {self.v}\n t\n    {self.t}>"
 
     def __len__(self):
         """Number of state vectors in this object."""
@@ -110,6 +111,37 @@ class State:
     def __getitem__(self, k: Union[int, tuple, slice]) -> StateType:
         """Get the state(s) at ``k``."""
         return State(self.r[k], self.v[k], self.t[k], frame=self.frame)
+
+    def __add__(self, other: StateType) -> StateType:
+        """Vector addition of two states.  Times must match."""
+        if not np.isclose((other.t - self.t).jd, 0):
+            raise ValueError("Can only add vectors with matching times.")
+
+        return State(
+            self.r + other.r,
+            self.v + other.v,
+            self.t,
+            frame=self.frame,
+        )
+
+    def __sub__(self, other: StateType) -> StateType:
+        """Vector subtraction of two states.  Times must match."""
+        return self + -other
+
+    def __neg__(self) -> StateType:
+        """Invert the direction of the state vector position and velocity."""
+        return State(
+            -self.r,
+            -self.v,
+            self.t,
+            frame=self.frame,
+        )
+
+    def __abs__(self) -> Tuple[u.Quantity[u.m], u.Quantity[u.m / u.s]]:
+        """Return the magnitude of the position and velocity."""
+        r = np.sqrt(np.sum(self.r**2, axis=-1))
+        v = np.sqrt(np.sum(self.v**2, axis=-1))
+        return r, v
 
     @property
     def r(self) -> u.Quantity[u.km]:
@@ -182,9 +214,22 @@ class State:
     def t(self, t):
         self._t = t.tdb.to_value("et").reshape((-1,))
 
-    @property
-    def skycoord(self) -> SkyCoord:
+    def to_skycoord(self) -> SkyCoord:
         """State as a `~astropy.coordinates.SkyCoord` object."""
+
+        kwargs: dict = {}
+        if isinstance(self.frame, BaseCoordinateFrame):
+            kwargs["frame"] = self.frame.copy()
+            kwargs["frame"].representation_type = "cartesian"
+        else:
+            kwargs["frame"] = self.frame
+            kwargs["representation_type"] = "cartesian"
+
+        # when frame instances have obstime, SkyCoord will not accept it as a
+        # separate parameter
+        if not hasattr(kwargs["frame"], "obstime"):
+            kwargs["obstime"] = self.t[0]
+
         return SkyCoord(
             x=self.x,
             y=self.y,
@@ -192,10 +237,27 @@ class State:
             v_x=self.v_x,
             v_y=self.v_y,
             v_z=self.v_z,
-            obstime=self.t[0],
-            frame=self.frame,
-            representation_type="cartesian",
+            **kwargs,
         )
+
+    def transform_to(self, frame: FrameType) -> StateType:
+        """Transform state into another reference frame.
+
+
+        Parameters
+        ----------
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform into this reference frame.
+
+
+        Returns
+        -------
+        state : State
+            The transformed state.
+
+        """
+
+        return State.from_skycoord(self.to_skycoord().transform_to(frame))
 
     def observe(self, target: StateType, frame: Optional[FrameType] = None) -> SkyCoord:
         """Project a target's position on to the sky.
@@ -216,24 +278,16 @@ class State:
 
         """
 
-        target_in_frame: State = State.from_skycoord(
-            target.skycoord.transform_to(self.frame)
-        )
-        coords: SkyCoord = SkyCoord(
-            x=target_in_frame.x - self.x,
-            y=target_in_frame.y - self.y,
-            z=target_in_frame.z - self.z,
-            v_x=target_in_frame.v_x - self.v_x,
-            v_y=target_in_frame.v_y - self.v_y,
-            v_z=target_in_frame.v_z - self.v_z,
-            obstime=self.t[0],
-            frame=self.frame,
-            representation_type="cartesian",
-        )
+        if not np.isclose((self.t - target.t).jd, 0):
+            raise ValueError("Observer and target states are at different times.")
 
-        if frame is not None:
-            coords = coords.transform_to(frame)
+        frame: FrameType = self.frame if frame is None else frame
 
+        # transform into the requested reference frame, then difference
+        target_in_frame: State = target.transform_to(frame)
+        observer_in_frame: State = self.transform_to(frame)
+
+        coords: SkyCoord = (target_in_frame - observer_in_frame).to_skycoord()
         coords.representation_type = "spherical"
         return coords
 
@@ -273,16 +327,11 @@ class State:
 
         """
 
-        r: u.Quantity = u.Quantity(
-            [coords.cartesian.x, coords.cartesian.y, coords.cartesian.z]
-        ).T
-        v: u.Quantity = u.Quantity(
-            [
-                coords.cartesian.differentials["s"].d_x,
-                coords.cartesian.differentials["s"].d_y,
-                coords.cartesian.differentials["s"].d_z,
-            ]
-        ).T
+        _coords: SkyCoord = coords.copy()
+        _coords.representation_type = "cartesian"
+
+        r: u.Quantity = u.Quantity([_coords.x, _coords.y, _coords.z]).T
+        v: u.Quantity = u.Quantity([_coords.v_x, _coords.v_y, _coords.v_z]).T
         t: Time = coords.obstime
         return cls(r, v, t, frame=coords.frame)
 
@@ -334,39 +383,37 @@ class State:
         )
 
 
-class DynamicalModel:
-    """Super-class for dynamical models."""
+_dynamical_model_parameters = """
+Parameters
+    ----------
+    **kwargs
+        Arguments passed on to `~scipy.integrate.solve_ivp`.  Units are seconds,
+        km, and km/s, e.g., ``max_step`` is a float value in units of seconds.
+        For relative and absolute tolerance keywords, ``rtol`` and ``atol``,
+        6-element arrays may be used, where the first three elements are for
+        position, and the last three are for velocity.
+"""
 
 
-class SolarGravityAndRadiationPressure(DynamicalModel):
-    """Solve equations of motion considering radiation force.
+class DynamicalModel(abc.ABC):
+    """Super-class for dynamical models.
+    
+    {}
+    """.format(
+        _dynamical_model_parameters
+    )
 
+    def __init__(self, **kwargs):
+        self.solver_kwargs: dict = dict(
+            rtol=1e-8,
+            atol=[1e-4, 1e-4, 1e-4, 1e-10, 1e-10, 1e-10],
+            jac=self.df_drv,
+            method="LSODA",
+        )
+        self.solver_kwargs.update(kwargs)
 
-    Dust is parameterized with ``beta``, the ratio of the force from solar
-    radiation pressure (:math:`F_r`) to that from solar gravity (:math:`F_g`):
-
-    .. math::
-        \\beta = \\frac{F_r}{F_g}
-
-    For spherical dust grains, ``beta`` reduces to:
-
-    .. math::
-        \\beta = \\frac{0.57 Q_{pr}}{\\rho a}
-
-    where :math:`Q_{pr}` is the radiation pressure efficiency averaged over the
-    solar spectrum, :math:`\\rho` is the mass density of the grain (g/cm3), and
-    :math:`a` is the grain radius (μm) (Burns et al. 1979).
-
-    Only Newtonian gravity and radiation pressure are considered.
-    Poynting-Roberston drag and general relativity are not included.
-
-    """
-
-    # Constants for quick reference
-    _GM: float = (const.G * const.M_sun).to_value("km3/s2")
-
-    @classmethod
-    def dx_dt(cls, t: float, rv: np.ndarray, beta: float) -> np.ndarray:
+    @abc.abstractclassmethod
+    def dx_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
         """Derivative of position and velocity.
 
 
@@ -379,33 +426,20 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
             First three elements are the position vector at time ``t``, km. The
             next three elements are the velocity vector at time ``t``, km/s.
 
-        beta : float
-            Radiation force efficiency factor: :math:`F_{rad} / F_{gravity}`.
+        *args :
+            Additional parameters.
 
 
         Returns
         -------
-        dx_dt : ndarray
+        dx_dt : `numpy.ndarray`
             First three elements for :math:`dr/dt`, next three for :math:`dv/dt`.
 
         """
+        pass
 
-        r = rv[:3]
-        v = rv[3:]
-
-        r2 = (r**2).sum()
-        r1 = np.sqrt(r2)
-        r3 = r2 * r1
-        GM_r3 = cls._GM / r3 * (1 - beta)
-
-        dx_dt = np.empty(6)
-        dx_dt[:3] = v
-        dx_dt[3:] = -r * GM_r3
-
-        return dx_dt
-
-    @classmethod
-    def df_drv(cls, t: float, rv: np.ndarray, beta: float) -> np.ndarray:
+    @abc.abstractclassmethod
+    def df_drv(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
         """Jacobian matrix, :math:`df/drv`.
 
 
@@ -418,23 +452,132 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
             First three elements are the position vector at time ``t``, km. The
             next three elements are the velocity vector at time ``t``, km/s.
 
-        beta : float
-            Radiation force efficiency factor: :math:`F_{rad} / F_{gravity}`.
+        *args :
+            Additional parameters.
 
 
         Returns
         -------
-        df_drv : ndarray
+        df_drv : `numpy.ndarray`
             First three elements for :math:`df/dr`, next three for
             :math:`df/dv`.
 
         """
+        pass
 
+    def solve(
+        self,
+        initial: State,
+        t_f: Time,
+        *args,
+    ) -> State:
+        """Solve the equations of motion for a single particle.
+
+        The solution is calculated with `scipy.integrate.solve_ivp`.
+
+
+        Parameters
+        ----------
+        initial : State
+            Initial state (position and velocity at time) of the particle.
+
+        t_f : Time
+            Time at which the solution is desired.
+
+        *args :
+            Additional arguments passed to `dx_dt` and `df_drv`.
+
+
+        Returns
+        -------
+        final : State
+
+        """
+
+        final = State([0, 0, 0], [0, 0, 0], t_f, frame=initial.frame)
+
+        result = solve_ivp(
+            self.dx_dt,
+            (initial.t.et[0], final.t.et[0]),
+            initial.rv,
+            args=args,
+            **self.solver_kwargs,
+        )
+
+        if not result.success:
+            raise SolverFailed(result.message)
+
+        final.r = result.y[:3, -1] * u.km
+        final.v = result.y[3:, -1] * u.km / u.s
+        return final
+
+
+class FreeExpansion(DynamicalModel):
+    """Particle motion in free space.
+    
+    {}
+    """.format(
+        _dynamical_model_parameters
+    )
+
+    @classmethod
+    def dx_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
+        dx_dt = np.empty(6)
+        dx_dt[:3] = rv[3:]
+        dx_dt[3:] = 0
+
+        return dx_dt
+
+    @classmethod
+    def df_drv(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
+        # df_drv[i, j] = df_i/drv_j
+        df_drv = np.zeros((6, 6))
+
+        df_drv[0, 3] = 1
+        df_drv[1, 4] = 1
+        df_drv[2, 5] = 1
+
+        return df_drv
+
+
+class SolarGravity(DynamicalModel):
+    """Particle orbiting the Sun.
+    
+    {}
+    """.format(
+        _dynamical_model_parameters
+    )
+
+    _GM: float = (const.G * const.M_sun).to_value("km3/s2")
+
+    @property
+    def GM(self):
+        """Gravitational constant times mass."""
+        return u.Quantity(self._GM, "km3/s2")
+
+    @classmethod
+    def dx_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
+        r = rv[:3]
+        v = rv[3:]
+
+        r2 = (r**2).sum()
+        r1 = np.sqrt(r2)
+        r3 = r2 * r1
+        GM_r3 = cls._GM / r3
+
+        dx_dt = np.empty(6)
+        dx_dt[:3] = v
+        dx_dt[3:] = -r * GM_r3
+
+        return dx_dt
+
+    @classmethod
+    def df_drv(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
         r = rv[:3]
         r2 = (r**2).sum()
         r1 = np.sqrt(r2)
         r3 = r1 * r2
-        GM_r3 = cls._GM * (1 - beta) / r3
+        GM_r3 = cls._GM
         GM_r5 = GM_r3 / r2
 
         # df_drv[i, j] = df_i/drv_j
@@ -458,98 +601,85 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
 
         return df_drv
 
-    @classmethod
-    def solve(
-        cls,
-        initial: State,
-        t_f: Time,
-        beta: float,
-        **kwargs,
-    ) -> State:
-        """Solve the equations of motion for a single particle.
 
-        The solution is calculated with `scipy.integrate.solve_ivp`.  The
-        default parameters are tuned for precision, but your requirements may
-        need different values.
+class SolarGravityAndRadiationPressure(DynamicalModel):
+    """Particle orbiting the Sun considering radiation force.
 
 
-        Parameters
-        ----------
-        initial : State
-            Initial state (position and velocity at time) of the particle.
+    Dust is parameterized with ``beta``, the ratio of the force from solar
+    radiation pressure (:math:`F_r`) to that from solar gravity (:math:`F_g`):
 
-        t_f : Time
-            Time at which the solution is desired.
+    .. math::
+        \\beta = \\frac{{F_r}}{{F_g}}
 
-        beta : float
-            Radiation pressure efficiency factor.
+    For spherical dust grains, ``beta`` reduces to:
 
-        **kwargs
-            Keyword arguments for `scipy.integrate.solve_ivp`.  Units are
-            seconds, km, and km/s, e.g., ``max_step`` is a float value in units
-            of seconds.  For relative and absolute tolerance keywords, ``rtol``
-            and ``atol``, 6-element arrays may be used, where the first three
-            elements are for position, and the last three are for velocity.
+    .. math::
+        \\beta = \\frac{{0.57 Q_{{pr}}}}{{\\rho a}}
 
+    where :math:`Q_{{pr}}` is the radiation pressure efficiency averaged over
+    the solar spectrum, :math:`\\rho` is the mass density of the grain (g/cm3),
+    and :math:`a` is the grain radius (μm) (Burns et al. 1979).
 
-        Returns
-        -------
-        final : State
-
-        """
-
-        final = State([0, 0, 0], [0, 0, 0], t_f, frame=initial.frame)
-
-        ivp_kwargs = dict(
-            rtol=1e-8,
-            atol=[1e-4, 1e-4, 1e-4, 1e-10, 1e-10, 1e-10],
-            jac=cls.df_drv,
-            method="LSODA",
-        )
-        ivp_kwargs.update(kwargs)
-
-        result = solve_ivp(
-            cls.dx_dt,
-            (initial.t.et[0], final.t.et[0]),
-            initial.rv,
-            args=(beta,),
-            **ivp_kwargs,
-        )
-
-        if not result.success:
-            raise SolverFailed(result.message)
-
-        final.r = result.y[:3, -1] * u.km
-        final.v = result.y[3:, -1] * u.km / u.s
-        return final
+    Only Newtonian gravity and radiation pressure are considered.
+    Poynting-Roberston drag and general relativity are not included.
 
 
-class SolarGravity(SolarGravityAndRadiationPressure):
-    """Solve equations of motion for a particle orbiting the Sun."""
+    {}
+    """.format(
+        _dynamical_model_parameters
+    )
+
+    # For quick reference
+    _GM: float = (const.G * const.M_sun).to_value("km3/s2")
+
+    @property
+    def GM(self):
+        """Gravitational constant times mass."""
+        return u.Quantity(self._GM, "km3/s2")
 
     @classmethod
-    def solve(cls, initial: State, t_f: Time) -> State:
-        """Solve the equations of motion for a single particle.
+    def dx_dt(cls, t: float, rv: np.ndarray, beta: float, *args) -> np.ndarray:
+        r = rv[:3]
+        v = rv[3:]
 
+        r2 = (r**2).sum()
+        r1 = np.sqrt(r2)
+        r3 = r2 * r1
+        GM_r3 = cls._GM / r3 * (1 - beta)
 
-        Parameters
-        ----------
-        initial : State
-            Initial state (position and velocity at time) of the particle.
+        dx_dt = np.empty(6)
+        dx_dt[:3] = v
+        dx_dt[3:] = -r * GM_r3
 
-        t_f : Time
-            Time at which the solution is desired.
+        return dx_dt
 
-        Returns
-        -------
-        final : State
+    @classmethod
+    def df_drv(cls, t: float, rv: np.ndarray, beta: float, *args) -> np.ndarray:
+        r = rv[:3]
+        r2 = (r**2).sum()
+        r1 = np.sqrt(r2)
+        r3 = r1 * r2
+        GM_r3 = cls._GM / r3 * (1 - beta)
+        GM_r5 = GM_r3 / r2
 
-        """
+        # df_drv[i, j] = df_i/drv_j
+        df_drv = np.zeros((6, 6))
 
-        return super().solve(initial, t_f, 0)
+        df_drv[0, 3] = 1
+        df_drv[1, 4] = 1
+        df_drv[2, 5] = 1
 
+        df_drv[3, 0] = GM_r5 * (r2 - 3 * r[0] * r[0])
+        df_drv[3, 1] = -GM_r5 * 3 * r[0] * r[1]
+        df_drv[3, 2] = -GM_r5 * 3 * r[0] * r[2]
 
-class FreeExpansion(SolarGravity):
-    """Solve equations of motion for a particle in free space."""
+        df_drv[4, 0] = -GM_r5 * 3 * r[1] * r[0]
+        df_drv[4, 1] = GM_r5 * (r2 - 3 * r[1] * r[1])
+        df_drv[4, 2] = -GM_r5 * 3 * r[1] * r[2]
 
-    _GM = 0
+        df_drv[5, 0] = -GM_r5 * 3 * r[2] * r[0]
+        df_drv[5, 1] = -GM_r5 * 3 * r[2] * r[1]
+        df_drv[5, 2] = GM_r5 * (r2 - 3 * r[2] * r[2])
+
+        return df_drv
