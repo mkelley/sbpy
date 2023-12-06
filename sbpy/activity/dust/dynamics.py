@@ -113,9 +113,11 @@ class State:
         return State(self.r[k], self.v[k], self.t[k], frame=self.frame)
 
     def __add__(self, other: StateType) -> StateType:
-        """Vector addition of two states.  Times must match."""
-        if not np.isclose((other.t - self.t).jd, 0):
-            raise ValueError("Can only add vectors with matching times.")
+        """Vector addition of two states.
+
+        Time is taken from the left operand.
+
+        """
 
         return State(
             self.r + other.r,
@@ -125,7 +127,12 @@ class State:
         )
 
     def __sub__(self, other: StateType) -> StateType:
-        """Vector subtraction of two states.  Times must match."""
+        """Vector subtraction of two states.
+
+        Time is taken from the left operand.
+
+        """
+
         return self + -other
 
     def __neg__(self) -> StateType:
@@ -277,9 +284,6 @@ class State:
         coords : SkyCoord
 
         """
-
-        if not np.isclose((self.t - target.t).jd, 0):
-            raise ValueError("Observer and target states are at different times.")
 
         frame: FrameType = self.frame if frame is None else frame
 

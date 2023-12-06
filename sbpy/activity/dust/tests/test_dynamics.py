@@ -134,11 +134,12 @@ class TestState:
     def test_operators(self):
         t = Time("2022-08-02")
         a = State([1, 2, 3] * u.au, [10, 20, -30] * u.km / u.s, t)
-        b = State([4, 5, 6] * u.au, [100, 200, -300] * u.km / u.s, t)
+        b = State([4, 5, 6] * u.au, [100, 200, -300] * u.km / u.s, Time("2023-08-02"))
 
         x = a + b
         assert u.allclose(x.r, [5, 7, 9] * u.au)
         assert u.allclose(x.v, [110, 220, -330] * u.km / u.s)
+        assert np.isclose((x.t - a.t).jd, 0)
 
         x = -a
         assert u.allclose(x.r, [-1, -2, -3] * u.au)
@@ -147,10 +148,7 @@ class TestState:
         x = a - b
         assert u.allclose(x.r, [-3, -3, -3] * u.au)
         assert u.allclose(x.v, [-90, -180, 270] * u.km / u.s)
-
-        c = State([4, 5, 6] * u.au, [100, 200, -300] * u.km / u.s, t + 1 * u.s)
-        with pytest.raises(ValueError):
-            a + c
+        assert np.isclose((x.t - a.t).jd, 0)
 
     def test_abs(self):
         t = Time("2022-08-02")
@@ -430,10 +428,6 @@ class TestState:
         assert u.isclose(
             coords.distance, 3.19284032416352 * u.au, atol=linear_tol, rtol=1e-8
         )
-
-        comet.t = Time("2022-08-02", scale="utc")
-        with pytest.raises(ValueError):
-            earth.observe(comet)
 
     def test_from_states(self):
         t = Time("2022-08-02")
