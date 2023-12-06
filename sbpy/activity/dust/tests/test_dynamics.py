@@ -499,10 +499,21 @@ class TestState:
                 "date": t,
             },
         )
+
+        # initialize without specifying a frame
+        state = State.from_ephem(eph)
+
+        # and with the frame
         state = State.from_ephem(eph, frame="icrs")
         assert u.allclose(state.r, r)
         assert u.allclose(state.v, v)
         assert np.isclose((state.t - t).jd, 0)
+
+        for k in ("x", "y", "z", "vx", "vy", "vz", "date"):
+            incomplete = Ephem.from_table(eph.table.copy())
+            del incomplete.table[k]
+            with pytest.raises(ValueError):
+                State.from_ephem(incomplete)
 
         # note, these are coordinates of 12P as seen by the solar system
         # barycenter
@@ -522,6 +533,11 @@ class TestState:
         assert u.allclose(state.v, v)
         assert np.isclose((state.t - t).jd, 0)
 
+        for k in ("ra", "dec", "delta", "RA*cos(Dec)_rate", "Dec_rate", "delta_rate"):
+            incomplete = Ephem.from_table(eph.table.copy())
+            del incomplete.table[k]
+            with pytest.raises(ValueError):
+                State.from_ephem(incomplete)
 
 def test_spice_prop2b():
     """Test case from SPICE NAIF toolkit prop2b, v2.2.0

@@ -33,11 +33,11 @@ import astropy.constants as const
 from ... import data as sbd
 from ...data.ephem import Ephem
 from ...exceptions import SbpyException
-from ... import time
+from ... import time  # noqa: F401
 
 
 class SolverFailed(SbpyException):
-    pass
+    """DynamicalModel solver failed."""
 
 
 StateType = TypeVar("StateType", bound="State")
@@ -363,10 +363,16 @@ class State:
 
         """
 
-        t: Time = eph["date"]
-
-        rectangular = ("x", "y", "z", "vx", "vy", "vz")
-        spherical = ("ra", "dec", "Delta", "RA*cos(Dec)_rate", "Dec_rate", "deltadot")
+        rectangular: Tuple[str] = ("x", "y", "z", "vx", "vy", "vz", "date")
+        spherical: Tuple[str] = (
+            "ra",
+            "dec",
+            "Delta",
+            "RA*cos(Dec)_rate",
+            "Dec_rate",
+            "deltadot",
+            "date",
+        )
 
         if all([x in eph for x in rectangular]):
             r: u.Quantity[u.physical.length] = (
@@ -396,7 +402,8 @@ class State:
             return cls(r, v, eph["date"], frame=frame)
 
         raise ValueError(
-            "`Ephem` does not have the required time, position, and/or velocity fields."
+            "`Ephem` does not have the required time, position, and/or"
+            " velocity fields."
         )
 
 
@@ -453,7 +460,6 @@ class DynamicalModel(abc.ABC):
             First three elements for :math:`dr/dt`, next three for :math:`dv/dt`.
 
         """
-        pass
 
     @abc.abstractclassmethod
     def df_drv(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
@@ -480,8 +486,8 @@ class DynamicalModel(abc.ABC):
             :math:`df/dv`.
 
         """
-        pass
-
+        
+        
     def solve(
         self,
         initial: State,
@@ -593,7 +599,6 @@ class SolarGravity(DynamicalModel):
         r = rv[:3]
         r2 = (r**2).sum()
         r1 = np.sqrt(r2)
-        r3 = r1 * r2
         GM_r3 = cls._GM
         GM_r5 = GM_r3 / r2
 
