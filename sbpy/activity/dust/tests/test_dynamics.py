@@ -11,6 +11,7 @@ from astropy.coordinates import (
 )
 
 from .... import time  # for ephemeris time
+from ....data import Ephem
 from ..dynamics import (
     State,
     FreeExpansion,
@@ -359,8 +360,8 @@ class TestState:
             comet_data = q.vectors(refplane="ecliptic", closest_apparition=True, aberrations="geometric")
             print_rect(comet_data)
 
-        [0.644307773374595, -0.7841972063903224, 3.391591147538755e-05]
-        [0.01301350774835054, 0.01086343081039913, -2.045610960977488e-07]
+        [3.831073731476054, -0.7731565407334685, 0.196074135515735]
+        [-0.001734044117773847, 0.003823283252059133, 0.0005453056645337847]
 
         Compare to Horizons's ICRS coordinates, adjusted for light travel time
 
@@ -454,43 +455,72 @@ class TestState:
         assert np.isclose((c[1].t - b.t).jd, 0)
         assert str(c.frame).lower() == str(a.frame).lower()
 
-    # def test_from_ephem(self):
-    #     r = [3.83111326, -0.77324033, 0.19606241] * u.au
-    #     v = [-0.00173363, 0.00382319, 0.00054533] * u.au / u.day
-    #     t = Time("2022-08-02")
-    #     eph = Ephem.from_dict(
-    #         {
-    #             "x": r[0],
-    #             "y": r[1],
-    #             "z": r[2],
-    #             "vy": v[0],
-    #             "vz": v[1],
-    #             "vx": v[2],
-    #             "date": t,
-    #         },
-    #         frame="heliocentriceclipticiau76",
-    #     )
-    #     state = State.from_ephem(eph)
-    #     assert u.allclose(state.r, r)
-    #     assert u.allclose(state.v, v)
-    #     assert np.isclose((state.t - t).jd, 0)
+    def test_from_ephem(self):
+        """Test Ephem to State.
 
-    #     eph = Ephem.from_dict(
-    #         {
-    #             "ra": 348.37706 * u.deg,
-    #             "dec": -1.86304 * u.deg,
-    #             "delta": 3.90413464 * u.au,
-    #             "RA*cos(Dec)_rate": 6.308283 * u.arcsec / u.hr,
-    #             "Dec_rate": 4.270114 * u.arcsec / u.hr,
-    #             "delta_rate": -4.19816 * u.km / u.s,
-    #             "date": t,
-    #         },
-    #         frame="icrf",
-    #     )
-    #     state = State.from_ephem(eph)
-    #     assert u.allclose(state.r, r)
-    #     assert u.allclose(state.v, v)
-    #     assert np.isclose((state.t - t).jd, 0)
+        from astropy.time import Time
+        from astroquery.jplhorizons import Horizons
+        import spiceypy
+        import sbpy.time
+
+        t = Time("2023-12-06")
+        q = Horizons("12P", id_type="designation", epochs=t.tdb.jd, location="@0")
+        eph = q.vectors(refplane="earth", closest_apparition=True, aberrations="geometric")
+        # au and au/dau
+        rec = [float(eph[x]) for x in ("x", "y", "z", "vx", "vy", "vz")]
+
+        # au, rad, and rad/day
+        sph = spiceypy.xfmsta(rec, "rectangular", "latitudinal", " ")
+
+        delta, ra, dec, deldot, dra, ddec = sph
+
+        print(rec[:3])
+        print(rec[3:])
+        print(np.degrees((ra, dec)), "deg,", delta, "au")
+        print(np.degrees((dra, ddec)), "deg/day,", deldot, "au/day")
+
+        """
+
+        r = [0.5849871061746752, -1.112950265888228, 1.957197574037426] * u.au
+        v = (
+            [-0.0008339472072142703, 0.01387010312203588, -0.006617657384488537]
+            * u.au
+            / u.day
+        )
+        t = Time("2023-12-06", scale="tdb")
+        eph = Ephem.from_dict(
+            {
+                "x": r[0],
+                "y": r[1],
+                "z": r[2],
+                "vx": v[0],
+                "vy": v[1],
+                "vz": v[2],
+                "date": t,
+            },
+        )
+        state = State.from_ephem(eph, frame="icrs")
+        assert u.allclose(state.r, r)
+        assert u.allclose(state.v, v)
+        assert np.isclose((state.t - t).jd, 0)
+
+        # note, these are coordinates of 12P as seen by the solar system
+        # barycenter
+        eph = Ephem.from_dict(
+            {
+                "ra": -62.27275959 * u.deg,
+                "dec": 57.28285294 * u.deg,
+                "delta": 2.3262610671524557 * u.au,
+                "RA*cos(Dec)_rate": 0.26043265 * u.deg / u.day,
+                "Dec_rate": 0.17436216 * u.deg / u.day,
+                "delta_rate": -0.012413330003023705 * u.au / u.day,
+                "date": t,
+            },
+        )
+        state = State.from_ephem(eph, "icrs")
+        assert u.allclose(state.r, r)
+        assert u.allclose(state.v, v)
+        assert np.isclose((state.t - t).jd, 0)
 
 
 def test_spice_prop2b():

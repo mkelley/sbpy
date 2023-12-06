@@ -22,7 +22,12 @@ from scipy.integrate import solve_ivp
 
 from astropy.time import Time
 import astropy.units as u
-from astropy.coordinates import SkyCoord, BaseCoordinateFrame
+from astropy.coordinates import (
+    SkyCoord,
+    BaseCoordinateFrame,
+    SphericalRepresentation,
+    SphericalDifferential,
+)
 import astropy.constants as const
 
 from ... import data as sbd
@@ -341,7 +346,7 @@ class State:
 
     @classmethod
     @sbd.dataclass_input
-    def from_ephem(cls, eph: Ephem, frame: FrameType) -> StateType:
+    def from_ephem(cls, eph: Ephem, frame: Optional[FrameType] = None) -> StateType:
         """Initialize from an `~sbpy.data.Ephem` object.
 
 
@@ -351,36 +356,44 @@ class State:
             Ephemeris object, must have time, position, and velocity.  Position
             and velocity may be specified using ("x", "y", "z", "vx", "vy", and
             "vz"), or ("ra", "dec", "Delta", "RA*cos(Dec)_rate", "Dec_rate", and
-            "rdot").
+            "deltadot").
+
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+            Transform the coordinates into this reference frame.
 
         """
 
         t: Time = eph["date"]
 
         rectangular = ("x", "y", "z", "vx", "vy", "vz")
-        spherical = ("ra", "dec", "Delta", "RA*cos(Dec)_rate", "Dec_rate", "rdot")
+        spherical = ("ra", "dec", "Delta", "RA*cos(Dec)_rate", "Dec_rate", "deltadot")
 
         if all([x in eph for x in rectangular]):
-            r: u.Quantity[u.physical.length] = u.Quantity(
-                [eph["x"], eph["y"], eph["z"]]
-            ).T
-            v: u.Quantity[u.physical.speed] = u.Quantity(
-                [eph["vx"], eph["vy"], eph["vz"]]
-            ).T
+            r: u.Quantity[u.physical.length] = (
+                u.Quantity([eph["x"], eph["y"], eph["z"]]).reshape((3, len(eph))).T
+            )
+            v: u.Quantity[u.physical.speed] = (
+                u.Quantity([eph["vx"], eph["vy"], eph["vz"]]).reshape((3, len(eph))).T
+            )
             return cls(r, v, eph["date"], frame=frame)
         elif all([x in eph for x in spherical]):
-            coords: SkyCoord = SkyCoord(
-                ra=eph["ra"],
-                dec=eph["dec"],
-                distance=eph["Delta"],
-                pm_ra_cosdec=eph["RA*cos(Dec)_rate"],
-                pm_dec=eph["Dec_rate"],
-                radial_velocity=eph["rdot"],
-                obstime=eph["date"],
-                representation_type="spherical",
-                frame=frame,
+            c: SphericalRepresentation = SphericalRepresentation(
+                eph["ra"], eph["dec"], eph["Delta"]
             )
-            return cls.from_skycoord(coords)
+            d: SphericalDifferential = SphericalDifferential(
+                eph["RA*cos(Dec)_rate"],
+                eph["Dec_rate"],
+                eph["deltadot"],
+            ).to_cartesian(base=c)
+            c = c.to_cartesian()
+
+            r: u.Quantity[u.physical.length] = (
+                u.Quantity([c.x, c.y, c.z]).reshape((3, len(c))).T
+            )
+            v: u.Quantity[u.physical.speed] = (
+                u.Quantity([d.x, d.y, d.z]).reshape((3, len(c))).T
+            )
+            return cls(r, v, eph["date"], frame=frame)
 
         raise ValueError(
             "`Ephem` does not have the required time, position, and/or velocity fields."
