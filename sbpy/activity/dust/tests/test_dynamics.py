@@ -9,6 +9,7 @@ from astropy.coordinates import (
     SkyCoord,
     HeliocentricEclipticIAU76,
 )
+import astropy.constants as const
 
 from .... import time  # for ephemeris time
 from ....data import Ephem
@@ -539,6 +540,7 @@ class TestState:
             with pytest.raises(ValueError):
                 State.from_ephem(incomplete)
 
+
 def test_spice_prop2b():
     """Test case from SPICE NAIF toolkit prop2b, v2.2.0
 
@@ -582,6 +584,29 @@ def test_spice_prop2b():
     assert np.allclose(final.v.value, [0, 0.04464, -0.04464], atol=0.00001)
 
 
+class TestFreeExpansion:
+    def test(self):
+        r = [0, 1e6, 0]
+        v = [0, -1, 1]
+
+        solver = FreeExpansion()
+
+        initial = State(r, v, Time("2023-01-01"))
+        t_f = initial.t + 1e6 * u.s
+        final = solver.solve(initial, t_f)
+
+        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
+        assert np.allclose(final.v.value, [0, -1, 1])
+
+        solver = FreeExpansion(method="Radau")
+
+        initial = State(r, v, Time("2023-01-01"))
+        final = solver.solve(initial, t_f)
+
+        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
+        assert np.allclose(final.v.value, [0, -1, 1])
+
+
 class TestSolarGravity:
     @pytest.mark.parametrize("r1_au", ([0.3, 1, 3, 10, 30]))
     def test_circular_orbit(self, r1_au):
@@ -607,20 +632,28 @@ class TestSolarGravity:
         assert np.allclose(final.r.value, initial.r.value)
         assert np.allclose(final.v.value, initial.v.value)
 
+        t_f = initial.t + half_period * u.s
+        solver = SolarGravity(method="Radau")
+        final = solver.solve(initial, t_f)
 
-class TestFreeExpansion:
-    def test(self):
-        r = [0, 1e6, 0]
-        v = [0, -1, 1]
+        assert np.allclose(final.r.value, -initial.r.value)
+        assert np.allclose(final.v.value, -initial.v.value)
 
-        solver = FreeExpansion()
+    def test_GM(self):
+        solver = SolarGravity()
+        assert u.isclose(solver.GM, const.G * const.M_sun)
+
+    def test_solverfailed(self):
+        r = [0, 1, 0] * u.au
+        v = [0, -1, 1] * u.km / u.s
+
+        # force a solution failure
+        solver = SolarGravity(rtol=np.nan)
 
         initial = State(r, v, Time("2023-01-01"))
         t_f = initial.t + 1e6 * u.s
-        final = solver.solve(initial, t_f)
-
-        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
-        assert np.allclose(final.v.value, [0, -1, 1])
+        with pytest.raises(SolverFailed):
+            solver.solve(initial, t_f)
 
 
 class TestSolarGravityAndRadiationPressure:
@@ -641,6 +674,12 @@ class TestSolarGravityAndRadiationPressure:
 
         solver = ReducedGravity()
         final2 = solver.solve(initial, t_f)
+
+        assert u.allclose(final1.r, final2.r)
+        assert u.allclose(final1.v, final2.v)
+
+        solver = SolarGravityAndRadiationPressure(method="Radau")
+        final2 = solver.solve(initial, t_f, beta)
 
         assert u.allclose(final1.r, final2.r)
         assert u.allclose(final1.v, final2.v)
