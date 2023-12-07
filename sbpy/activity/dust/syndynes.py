@@ -278,7 +278,7 @@ class Syndynes:
 
         states: List[State] = []
         for i in range(len(dt)):
-            t: Time = self.source.t - dt[i]
+            t: Time = self.source.t + dt[i]
             states.append(self.solver.solve(self.source, t, 0))
 
         states: State = State.from_states(states)
