@@ -4,13 +4,14 @@ Activity Module (`sbpy.activity`)
 Introduction
 ------------
 
-`sbpy.activity` models cometary dust and gas activity.  It is separated into two main sub-modules: :doc:`dust` and :doc:`gas`.  The base module itself defines photometric apertures that may be useful for observations of comets.
+`sbpy.activity` models cometary dust and gas activity.  It is separated into two main sub-modules: :doc:`dust/index` and :doc:`gas`.  The base module itself defines photometric apertures that may be useful for observations of comets.
 
 .. toctree::
-   :maxdepth: 2
+  :maxdepth: 2
+  :caption: Table of Contents
 
-   dust.rst
-   gas.rst
+  dust/index
+  gas
 
 
 Apertures

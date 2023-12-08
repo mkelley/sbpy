@@ -63,8 +63,7 @@ class State:
     t : `~astropy.time.Time`
         Time, a scalar or shape = (N,).
 
-    frame : `~astropy.coordinates.BaseCoordinateFrame` class or string,
-            optional
+    frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
         Coordinate frame for ``r`` and ``v``. Defaults to
         `~astropy.coordinates.HeliocentricEclipticIAU76` if given as ``None``.
 

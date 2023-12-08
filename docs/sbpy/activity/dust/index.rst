@@ -1,6 +1,12 @@
 Cometary dust (`sbpy.activity.dust`)
 ====================================
 
+Cometary dust is the refractory material released by comets.  This sub-module provides simple photometric models of cometary dust comae, and dynamical models for cometary dust grains.
+
+* `Photometric models: *Afρ* and *εfρ* <Afρ and εfρ models_>`_
+* :doc:`Syndynes <syndynes>`
+* :doc:`Dynamical models <dynamics>`
+
 
 *Afρ* and *εfρ* models
 ----------------------
