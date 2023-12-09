@@ -109,6 +109,13 @@ class TestSyndynes:
             assert np.allclose(coords.lon.deg, 315, atol=2)
             assert np.allclose(coords.lat.deg, 0)
 
+        # remove the observer and verify outputs
+        syn.observer = None
+        for beta, states in syn.syndynes():
+            assert beta == betas[0]
+            assert np.allclose((states.t - comet.t).jd, 0)
+            assert np.allclose((coords.obstime - comet.t).jd, 0)
+
     def test_synchrones(self, example_syndynes):
         comet, betas, ages, syn, observer = example_syndynes
 
@@ -120,6 +127,13 @@ class TestSyndynes:
             # State.observe is already tested, so a generous test here
             assert np.allclose(coords.lon.deg, 315, atol=2)
             assert np.allclose(coords.lat.deg, 0)
+
+        # remove the observer and verify outputs
+        syn.observer = None
+        for i, (age, states) in enumerate(syn.syndynes()):
+            assert age == ages[i]
+            assert np.allclose((states.t - comet.t).jd, 0)
+            assert np.allclose((coords.obstime - comet.t).jd, 0)
 
     def test_get_orbit(self, example_syndynes):
         comet, betas, ages, syn, observer = example_syndynes

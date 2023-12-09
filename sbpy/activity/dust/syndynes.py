@@ -96,7 +96,11 @@ class Syndynes:
         return f"<Syndynes:\n betas\n    {self.betas}\n ages\n    {self.ages}>"
 
     def initialize_states(self) -> None:
-        """Generate the initial particle states."""
+        """Generate the initial particle states.
+
+        This method is automatically run on initialization.
+
+        """
 
         states: List[State] = []
         for age in self.ages:
@@ -158,17 +162,19 @@ class Syndynes:
         syn : State
             The particle states.
 
-        coords : SkyCoord
-            The observed coordinates.
+        coords : SkyCoord, optional
+            The observed coordinates.  Only returned when ``.observer`` is
+            defined.
 
         """
 
         n: int = self.ages.size
         syn: State = self.particles[i * n : (i + 1) * n]
-        coords: SkyCoord = (
-            self.observer.observe(syn, frame) if self.observer is not None else None
-        )
 
+        if self.observer is None:
+            return float(self.betas[i]), syn
+
+        coords: SkyCoord = self.observer.observe(syn, frame)
         return float(self.betas[i]), syn, coords
 
     def get_synchrone(
@@ -196,17 +202,19 @@ class Syndynes:
         syn : State
             The particle states.
 
-        coords : SkyCoord
-            The observed coordinates.
+        coords : SkyCoord, optional
+            The observed coordinates.  Only returned when ``.observer`` is
+            defined.
 
         """
 
         n: int = self.ages.size
-        # add the source to make sure the synchrones always draw back to the target
-        syn: State = State.from_states([self.source] + list(self.particles[i::n]))
-        coords: SkyCoord = (
-            self.observer.observe(syn, frame) if self.observer is not None else None
-        )
+        syn: State = self.particles[i::n]
+
+        if self.observer is None:
+            return self.ages[i], syn
+
+        coords: SkyCoord = self.observer.observe(syn, frame)
         return self.ages[i], syn, coords
 
     def syndynes(
@@ -252,7 +260,7 @@ class Syndynes:
 
     def get_orbit(
         self, dt: u.Quantity[u.s], frame: Optional[FrameType] = None
-    ) -> Tuple[State, SkyCoord]:
+    ) -> Union[State, Tuple[State, SkyCoord]]:
         """Calculate and observe the orbit of the dust source.
 
 
@@ -271,8 +279,9 @@ class Syndynes:
         orbit : State
             The orbital states.
 
-        coords : SkyCoord
-            The observed coordinates.
+        coords : SkyCoord, optional
+            The observed coordinates.  Only returned when ``.observer`` is
+            defined.
 
         """
 
@@ -280,9 +289,10 @@ class Syndynes:
         for i in range(len(dt)):
             t: Time = self.source.t + dt[i]
             states.append(self.solver.solve(self.source, t, 0))
-
         states: State = State.from_states(states)
-        coords: SkyCoord = (
-            self.observer.observe(states, frame) if self.observer is not None else None
-        )
+
+        if self.observer is None:
+            return states
+
+        coords: SkyCoord = self.observer.observe(states, frame)
         return states, coords

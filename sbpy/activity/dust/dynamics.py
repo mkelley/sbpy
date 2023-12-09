@@ -424,8 +424,10 @@ class State:
         )
 
 
-_dynamical_model_parameters = """
-Parameters
+class DynamicalModel(abc.ABC):
+    """Super-class for dynamical models.
+
+    Parameters
     ----------
     **kwargs
         Arguments passed on to `~scipy.integrate.solve_ivp`.  Units are seconds,
@@ -433,16 +435,8 @@ Parameters
         For relative and absolute tolerance keywords, ``rtol`` and ``atol``,
         6-element arrays may be used, where the first three elements are for
         position, and the last three are for velocity.
-"""
 
-
-class DynamicalModel(abc.ABC):
-    """Super-class for dynamical models.
-    
-    {}
-    """.format(
-        _dynamical_model_parameters
-    )
+    """
 
     def __init__(self, **kwargs):
         self.solver_kwargs: dict = dict(
@@ -552,12 +546,19 @@ class DynamicalModel(abc.ABC):
 
 
 class FreeExpansion(DynamicalModel):
-    """Particle motion in free space.
-    
-    {}
-    """.format(
-        _dynamical_model_parameters
-    )
+    """Equation of motion solver for particle motion in free space.
+
+
+    Parameters
+    ----------
+    **kwargs
+        Arguments passed on to `~scipy.integrate.solve_ivp`.  Units are seconds,
+        km, and km/s, e.g., ``max_step`` is a float value in units of seconds.
+        For relative and absolute tolerance keywords, ``rtol`` and ``atol``,
+        6-element arrays may be used, where the first three elements are for
+        position, and the last three are for velocity.
+
+    """
 
     @classmethod
     def dx_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
@@ -580,12 +581,19 @@ class FreeExpansion(DynamicalModel):
 
 
 class SolarGravity(DynamicalModel):
-    """Particle orbiting the Sun.
-    
-    {}
-    """.format(
-        _dynamical_model_parameters
-    )
+    """Equation of motion solver for a particle orbiting the Sun.
+
+
+    Parameters
+    ----------
+    **kwargs
+        Arguments passed on to `~scipy.integrate.solve_ivp`.  Units are seconds,
+        km, and km/s, e.g., ``max_step`` is a float value in units of seconds.
+        For relative and absolute tolerance keywords, ``rtol`` and ``atol``,
+        6-element arrays may be used, where the first three elements are for
+        position, and the last three are for velocity.
+
+    """
 
     _GM: float = (const.G * const.M_sun).to_value("km3/s2")
 
@@ -640,7 +648,7 @@ class SolarGravity(DynamicalModel):
 
 
 class SolarGravityAndRadiationPressure(DynamicalModel):
-    """Particle orbiting the Sun considering radiation force.
+    """Equation of motion solver for a particle orbiting the Sun, including radiation force.
 
 
     Dust is parameterized with ``beta``, the ratio of the force from solar
@@ -662,10 +670,16 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
     Poynting-Roberston drag and general relativity are not included.
 
 
-    {}
-    """.format(
-        _dynamical_model_parameters
-    )
+    Parameters
+    ----------
+    **kwargs
+        Arguments passed on to `~scipy.integrate.solve_ivp`.  Units are seconds,
+        km, and km/s, e.g., ``max_step`` is a float value in units of seconds.
+        For relative and absolute tolerance keywords, ``rtol`` and ``atol``,
+        6-element arrays may be used, where the first three elements are for
+        position, and the last three are for velocity.
+
+    """
 
     # For quick reference
     _GM: float = (const.G * const.M_sun).to_value("km3/s2")

@@ -172,6 +172,8 @@ class TestState:
         )
 
         r, v = abs(b)
+        assert r.shape == (2,)
+        assert v.shape == (2,)
         assert u.allclose(
             r, [length(1, 2, 3), length(4, 5, 6)] * u.au, atol=1 * u.um, rtol=1e-10
         )
