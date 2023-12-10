@@ -82,20 +82,20 @@ class TestSyndynes:
             expected = solver.solve(comet, comet.t - age)
             assert u.allclose(initial.r, expected.r)
             assert u.allclose(initial.v, expected.v)
-            assert all((initial.t - expected.t) == 0 * u.s)
+            assert (initial.t - expected.t) == (0 * u.s)
 
     def test_solve(self, example_syndynes):
         comet, betas, ages, syn, observer = example_syndynes
 
         solver = SolarGravityAndRadiationPressure()
         for i, beta in enumerate(betas):
-            syn = syn.get_syndyne(i)[1]
+            states = syn.get_syndyne(i)[1]
             for j, age in enumerate(ages):
                 initial = solver.solve(comet, comet.t - age, 0)
                 expected = solver.solve(initial, comet.t, beta)
-                assert u.allclose(syn[j].r, expected.r)
-                assert u.allclose(syn[j].v, expected.v)
-                assert all((syn.t - expected.t) == 0 * u.s)
+                assert u.allclose(states[j].r, expected.r)
+                assert u.allclose(states[j].v, expected.v)
+                assert all((states.t - expected.t) == 0 * u.s)
 
     def test_syndynes(self, example_syndynes):
         comet, betas, ages, syn, observer = example_syndynes
@@ -130,7 +130,7 @@ class TestSyndynes:
 
         # remove the observer and verify outputs
         syn.observer = None
-        for i, (age, states) in enumerate(syn.syndynes()):
+        for i, (age, states) in enumerate(syn.synchrones()):
             assert age == ages[i]
             assert np.allclose((states.t - comet.t).jd, 0)
             assert np.allclose((coords.obstime - comet.t).jd, 0)
@@ -142,8 +142,14 @@ class TestSyndynes:
         orbit, coords = syn.get_orbit(dt)
         assert np.allclose((orbit.t - comet.t).jd, dt.value)
 
+        # and without observer
+        syn.observer = None
+        orbit2 = syn.get_orbit(dt)
+
         solver = SolarGravity()
         for i in range(len(dt)):
             expected = solver.solve(comet, comet.t + dt[i])
             assert u.allclose(orbit[i].r, expected.r)
             assert u.allclose(orbit[i].v, expected.v)
+            assert u.allclose(orbit2[i].r, expected.r)
+            assert u.allclose(orbit2[i].v, expected.v)

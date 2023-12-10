@@ -45,6 +45,15 @@ class TestState:
         assert np.allclose(state._v, ([30, 0, 0] * u.km / u.s).to_value("km / s"))
         assert np.isclose(state._t, t.tdb.to_value("et"))
 
+        # test time as a float
+        state = State(
+            [1, 1, 0] * u.au,
+            [30, 0, 0] * u.km / u.s,
+            0,
+            frame="heliocentriceclipticiau76",
+        )
+        assert np.isclose(state._t, 0)
+
     def test_init_shape_mismatch(self):
         with pytest.raises(ValueError):
             State(
@@ -60,6 +69,39 @@ class TestState:
                 [30, 0, 0] * u.km / u.s,
                 Time(["2022-08-02", "2023-08-02"]),
                 frame="heliocentriceclipticiau76",
+            )
+
+    def test_init_dimensionality(self):
+        state = State(
+            [1, 1, 1],
+            [0, 0, 0],
+            "2022-08-22",
+        )
+        assert state.r.shape == (3,)
+        assert state.v.shape == (3,)
+        assert state.t.shape == ()
+
+        with pytest.raises(ValueError):
+            State(
+                [1, 1, 1],
+                [0, 0, 0],
+                ["2022-08-22"],
+            )
+
+        state = State(
+            [[1, 1, 1]],
+            [[0, 0, 0]],
+            ["2022-08-22"],
+        )
+        assert state.r.shape == (1, 3)
+        assert state.v.shape == (1, 3)
+        assert state.t.shape == (1,)
+
+        with pytest.raises(ValueError):
+            state = State(
+                [[1, 1, 1]],
+                [[0, 0, 0]],
+                "2022-08-22",
             )
 
     def test_rv_shapes(self):
@@ -90,16 +132,7 @@ class TestState:
             Time("2022-08-02"),
             frame="heliocentriceclipticiau76",
         )
-        assert (
-            repr(state)
-            == """<State (heliocentriceclipticiau76):
- r
-    [1.49597871e+08 1.49597871e+08 0.00000000e+00] km
- v
-    [30.  0.  0.] km / s
- t
-    [7.12670469e+08]>"""
-        )
+        assert repr(state) == "<State frame=heliocentriceclipticiau76, length=1>"
 
     def test_len(self):
         state = State(
@@ -204,7 +237,7 @@ class TestState:
         state = State(
             [[1, 2, 4], [7, 8, 9]] * u.au,
             [[30, -10, 5], [5, 4, 6]] * u.km / u.s,
-            Time("2022-08-02"),
+            Time(["2022-08-02"] * 2),
             frame="heliocentriceclipticiau76",
         )
         assert u.allclose(state.x, [1, 7] * u.au)

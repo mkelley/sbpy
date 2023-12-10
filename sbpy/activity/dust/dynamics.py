@@ -60,8 +60,9 @@ class State:
     v : `~astropy.units.Quantity`
         Velocity (x, y, z), shape = (3,) or (N, 3).
 
-    t : `~astropy.time.Time`
-        Time, a scalar or shape = (N,).
+    t : `~astropy.time.Time` or float
+        Time, a scalar or shape = (N,).  If a float, then it is assumed to
+        be the number of seconds past the J2000 epoch on the TDB scale.
 
     frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
         Coordinate frame for ``r`` and ``v``. Defaults to
@@ -92,24 +93,29 @@ class State:
         self,
         r: u.Quantity[u.m],
         v: u.Quantity[u.m / u.s],
-        t: Time,
+        t: Union[Time, float],
         frame: Optional[FrameType] = None,
     ) -> None:
         self.r = u.Quantity(r, "km")
         self.v = u.Quantity(v, "km/s")
-        self.t = Time([t] * len(self)) if t.ndim == 0 else t
+        if isinstance(t, (float, int)):
+            self.t = Time(t, scale="tdb", format="et")
+        else:
+            self.t = Time(t)
         self.frame = frame
 
-        if (self.r.shape != self.v.shape) or (len(self) != len(self.t)):
+        if (self.r.shape != self.v.shape) or (len(self) != np.size(self.t)):
             raise ValueError("Mismatch between lengths of vectors.")
 
+        if (self.r.ndim == 1 and self.t.shape != ()) or (
+            self.r.ndim == 2 and self.t.shape == ()
+        ):
+            raise ValueError(
+                "Time must be a scalar when r and v are one dimensional arrays."
+            )
+
     def __repr__(self) -> str:
-        return (
-            f"<{type(self).__name__} ({self.frame}):\n"
-            + f" r\n    {self.r}\n"
-            + f" v\n    {self.v}\n"
-            + f" t\n    {self.t}>"
-        )
+        return f"<{type(self).__name__} frame={self.frame}, length={len(self)}>"
 
     def __len__(self):
         """Number of state vectors in this object."""
@@ -229,7 +235,7 @@ class State:
 
     @t.setter
     def t(self, t):
-        self._t = t.tdb.to_value("et").reshape((-1,))
+        self._t = t.tdb.to_value("et")
 
     def to_skycoord(self) -> SkyCoord:
         """State as a `~astropy.coordinates.SkyCoord` object."""
@@ -245,7 +251,7 @@ class State:
         # when frame instances have obstime, SkyCoord will not accept it as a
         # separate parameter
         if not hasattr(kwargs["frame"], "obstime"):
-            kwargs["obstime"] = self.t[0]
+            kwargs["obstime"] = self.t if self.t.isscalar else self.t
 
         return SkyCoord(
             x=self.x,
@@ -531,7 +537,7 @@ class DynamicalModel(abc.ABC):
 
         result = solve_ivp(
             self.dx_dt,
-            (initial.t.et[0], final.t.et[0]),
+            (float(initial.t.et), float(final.t.et)),
             initial.rv,
             args=args,
             **self.solver_kwargs,

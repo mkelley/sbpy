@@ -4,6 +4,6 @@ All things comet dust related.
 """
 
 
-from .core import *
+from .comae import *
 from .dynamics import *
 from .syndynes import *
