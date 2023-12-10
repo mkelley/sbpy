@@ -6,12 +6,12 @@ import pytest
 import numpy as np
 import astropy.units as u
 import synphot
-from ..dust import *
-from ..core import CircularAperture
-from ...calib import solar_fluxd
-from ...units import VEGAmag, JMmag
-from ...data import Ephem
-from ... import photometry
+from ..comae import Afrho, Efrho, phase_HalleyMarcus
+from ...core import CircularAperture
+from ....calib import solar_fluxd
+from ....units import VEGAmag, JMmag
+from ....data import Ephem
+from .... import photometry
 
 
 Wm2um = u.W / u.m**2 / u.um

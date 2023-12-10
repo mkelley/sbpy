@@ -1,7 +1,9 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
-All things gas coma realated.
+All things comet dust related.
 """
 
+
 from .core import *
-from .productionrate import *
+from .dynamics import *
+from .syndynes import *

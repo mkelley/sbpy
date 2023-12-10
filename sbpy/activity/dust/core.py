@@ -1,7 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
-sbpy Activity: Dust
-===================
+sbpy activity.dust.comae
+========================
 
 All things dust coma related.
 
@@ -23,14 +23,14 @@ try:
 except ImportError:
     InheritDocstrings = None
 
-from .. import bib
-from ..calib import Sun
-from ..spectroscopy import BlackbodySource
-from .. import data as sbd
-from .. import exceptions as sbe
-from .. import units as sbu
-from ..spectroscopy.sources import SinglePointSpectrumError
-from .core import Aperture
+from ... import bib
+from ...calib import Sun
+from ...spectroscopy import BlackbodySource
+from ... import data as sbd
+from ... import exceptions as sbe
+from ... import units as sbu
+from ...spectroscopy.sources import SinglePointSpectrumError
+from ..core import Aperture
 
 
 @bib.cite(
