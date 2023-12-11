@@ -15,7 +15,8 @@ __all__ = [
 ]
 
 import abc
-from typing import Iterable, Union, Optional, Tuple, TypeVar
+from functools import wraps
+from typing import Iterable, List, Union, Optional, Tuple, TypeVar
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -44,6 +45,16 @@ StateType = TypeVar("StateType", bound="State")
 FrameType = TypeVar("FrameType", str, BaseCoordinateFrame)
 
 
+def _requires_time_object(f):
+    @wraps(f)
+    def wrapper(self, *args, **kwargs):
+        if self.relative_time:
+            raise ValueError("Requires time as an astropy Time object.")
+        return f(self, *args, **kwargs)
+
+    return wrapper
+
+
 class State:
     """Dynamical state of an asteroid, comet, dust grain, etc.
 
@@ -60,9 +71,10 @@ class State:
     v : `~astropy.units.Quantity`
         Velocity (x, y, z), shape = (3,) or (N, 3).
 
-    t : `~astropy.time.Time` or float
-        Time, a scalar or shape = (N,).  If a float, then it is assumed to
-        be the number of seconds past the J2000 epoch on the TDB scale.
+    t : `~astropy.time.Time` or `~astropy.units.Quantity`
+        Time, a scalar or shape = (N,).  If a quantity, it must have units of
+        time, but some functionality (e.g., coordinate frame transformations)
+        will be disabled.
 
     frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
         Coordinate frame for ``r`` and ``v``. Defaults to
@@ -98,10 +110,7 @@ class State:
     ) -> None:
         self.r = u.Quantity(r, "km")
         self.v = u.Quantity(v, "km/s")
-        if isinstance(t, (float, int)):
-            self.t = Time(t, scale="tdb", format="et")
-        else:
-            self.t = Time(t)
+        self.t = t
         self.frame = frame
 
         if (self.r.shape != self.v.shape) or (len(self) != np.size(self.t)):
@@ -125,7 +134,15 @@ class State:
             return self._r.shape[0]
 
     def __getitem__(self, k: Union[int, tuple, slice]) -> StateType:
-        """Get the state(s) at ``k``."""
+        """Get the state(s) at ``k``.
+
+        Requires ``.r`` and ``.v`` are two dimensional arrays.
+
+        """
+
+        if self.r.ndim == 1:
+            raise KeyError("Not an array of states.")
+
         return State(self.r[k], self.v[k], self.t[k], frame=self.frame)
 
     def __add__(self, other: StateType) -> StateType:
@@ -229,16 +246,29 @@ class State:
             return np.hstack((self._r, self._v))
 
     @property
-    def t(self) -> Time:
+    def t(self) -> Union[Time, float, int]:
         """Time."""
-        return Time(self._t, format="et", scale="tdb")
+        if self.relative_time:
+            return u.Quantity(self._t, u.s)
+        else:
+            return Time(self._t, format="et", scale="tdb")
 
     @t.setter
-    def t(self, t):
-        self._t = t.tdb.to_value("et")
+    def t(self, t: Union[Time, str, float, int, np.ndarray]):
+        self.relative_time = not isinstance(t, (Time, str))
+        self._t = (
+            u.Quantity(t, "s").value
+            if self.relative_time
+            else Time(t).tdb.to_value("et")
+        )
 
+    @_requires_time_object
     def to_skycoord(self) -> SkyCoord:
-        """State as a `~astropy.coordinates.SkyCoord` object."""
+        """State as a `~astropy.coordinates.SkyCoord` object.
+
+        Requires time as a `~astropy.time.Time` object.
+
+        """
 
         kwargs: dict = {}
         if isinstance(self.frame, BaseCoordinateFrame):
@@ -251,7 +281,7 @@ class State:
         # when frame instances have obstime, SkyCoord will not accept it as a
         # separate parameter
         if not hasattr(kwargs["frame"], "obstime"):
-            kwargs["obstime"] = self.t if self.t.isscalar else self.t
+            kwargs["obstime"] = self.t
 
         return SkyCoord(
             x=self.x,
@@ -263,8 +293,11 @@ class State:
             **kwargs,
         )
 
+    @_requires_time_object
     def transform_to(self, frame: FrameType) -> StateType:
         """Transform state into another reference frame.
+
+        Requires time as a `~astropy.time.Time` object.
 
 
         Parameters
@@ -282,6 +315,7 @@ class State:
 
         return State.from_skycoord(self.to_skycoord().transform_to(frame))
 
+    @_requires_time_object
     def observe(
         self,
         target: StateType,
@@ -334,11 +368,15 @@ class State:
 
         r: np.ndarray = np.array([state.r for state in states])
         v: np.ndarray = np.array([state.v for state in states])
-        t: Time = Time(
-            [state.t.tdb.et for state in states],
-            scale="tdb",
-            format="et",
-        )
+
+        relative_time: List[bool] = [state.relative_time for state in states]
+        t: Union[Time, u.Quantity] = [state.t for state in states]
+        if all(relative_time):
+            t = u.Quantity(t)
+        elif not any(relative_time):
+            t = Time(t)
+        else:
+            raise ValueError("State times are a mix of Time and Quantity objects.")
 
         return State(r, v, t, frame=list(frames)[0])
 
@@ -454,8 +492,8 @@ class DynamicalModel(abc.ABC):
         self.solver_kwargs.update(kwargs)
 
     @abc.abstractclassmethod
-    def dx_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
-        """Derivative of position and velocity.
+    def df_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
+        """Derivative of position and velocity with respect to time.
 
 
         Parameters
@@ -520,7 +558,7 @@ class DynamicalModel(abc.ABC):
         initial : State
             Initial state (position and velocity at time) of the particle.
 
-        t_f : Time
+        t_f : `~astropy.time.Time` or `~astropy.units.Quantity`
             Time at which the solution is desired.
 
         *args :
@@ -536,8 +574,8 @@ class DynamicalModel(abc.ABC):
         final = State([0, 0, 0], [0, 0, 0], t_f, frame=initial.frame)
 
         result = solve_ivp(
-            self.dx_dt,
-            (float(initial.t.et), float(final.t.et)),
+            self.df_dt,
+            (float(initial._t), float(final._t)),
             initial.rv,
             args=args,
             **self.solver_kwargs,
@@ -567,7 +605,7 @@ class FreeExpansion(DynamicalModel):
     """
 
     @classmethod
-    def dx_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
+    def df_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
         dx_dt = np.empty(6)
         dx_dt[:3] = rv[3:]
         dx_dt[3:] = 0
@@ -609,7 +647,7 @@ class SolarGravity(DynamicalModel):
         return u.Quantity(self._GM, "km3/s2")
 
     @classmethod
-    def dx_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
+    def df_dt(cls, t: float, rv: np.ndarray, *args) -> np.ndarray:
         r = rv[:3]
         v = rv[3:]
 
@@ -696,7 +734,7 @@ class SolarGravityAndRadiationPressure(DynamicalModel):
         return u.Quantity(self._GM, "km3/s2")
 
     @classmethod
-    def dx_dt(cls, t: float, rv: np.ndarray, beta: float, *args) -> np.ndarray:
+    def df_dt(cls, t: float, rv: np.ndarray, beta: float, *args) -> np.ndarray:
         r = rv[:3]
         v = rv[3:]
 

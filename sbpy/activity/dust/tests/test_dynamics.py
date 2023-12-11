@@ -85,13 +85,13 @@ class TestState:
             State(
                 [1, 1, 1],
                 [0, 0, 0],
-                ["2022-08-22"],
+                Time(["2022-08-22"]),
             )
 
         state = State(
             [[1, 1, 1]],
             [[0, 0, 0]],
-            ["2022-08-22"],
+            Time(["2022-08-22"]),
         )
         assert state.r.shape == (1, 3)
         assert state.v.shape == (1, 3)
@@ -165,6 +165,15 @@ class TestState:
         assert u.allclose(state[1].r, [1, 1, 1] * u.au)
         assert u.allclose(state[1].v, [0, 30, 0] * u.km / u.s)
         assert np.isclose((state.t[1] - Time("2023-08-02")).jd, 0)
+
+        state = State(
+            [1, 1, 0] * u.au,
+            [30, 0, 0] * u.km / u.s,
+            Time("2022-08-02"),
+            frame="heliocentriceclipticiau76",
+        )
+        with pytest.raises(KeyError):
+            state[0]
 
     def test_operators(self):
         t = Time("2022-08-02")
@@ -466,6 +475,11 @@ class TestState:
             coords.distance, 3.19284032416352 * u.au, atol=linear_tol, rtol=1e-8
         )
 
+        # time cannot be a float
+        comet2 = State(r * u.au, v * u.au / u.day, 0)
+        with pytest.raises(ValueError):
+            comet2.observe(earth)
+
     def test_from_states(self):
         t = Time("2022-08-02")
         a = State([1, 2, 3], [4, 5, 6], t, frame="icrs")
@@ -490,6 +504,19 @@ class TestState:
         assert u.allclose(c[1].v, b.v)
         assert np.isclose((c[1].t - b.t).jd, 0)
         assert str(c.frame).lower() == str(a.frame).lower()
+
+        # Quantity times
+        t = 0 * u.s
+        a = State([1, 2, 3], [4, 5, 6], t)
+        b = State([1, 2, 3], [4, 5, 6], t)
+
+        # execute without error
+        c = State.from_states([a, b])
+
+        # cannot mix time types
+        c.t = Time("2022-08-02")
+        with pytest.raises(ValueError):
+            State.from_states([a, b, c])
 
     def test_from_ephem(self):
         """Test Ephem to State.
@@ -636,6 +663,19 @@ class TestFreeExpansion:
         solver = FreeExpansion(method="Radau")
 
         initial = State(r, v, Time("2023-01-01"))
+        final = solver.solve(initial, t_f)
+
+        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
+        assert np.allclose(final.v.value, [0, -1, 1])
+
+    def test_solve_with_relative_time(self):
+        r = [0, 1e6, 0]
+        v = [0, -1, 1]
+
+        solver = FreeExpansion()
+
+        initial = State(r, v, 0 * u.s)
+        t_f = initial.t + 1e6 * u.s
         final = solver.solve(initial, t_f)
 
         assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
