@@ -12,32 +12,99 @@ State objects
 
 .. doctest::
 
-   >>> from astropy.time import Time
-   >>> import astropy.units as u
-   >>> from sbpy.activity.dust import State
-   >>> 
-   >>> r = [2, 0, 0] * u.au
-   >>> v = [0, 30, 0] * u.km / u.s
-   >>> t = Time("2023-12-08")
-   >>> comet = State(r, v, t)
+    >>> from astropy.time import Time
+    >>> import astropy.units as u
+    >>> from sbpy.activity.dust import State
+    >>> 
+    >>> r = [2, 0, 0] * u.au
+    >>> v = [0, 30, 0] * u.km / u.s
+    >>> t = Time("2023-12-08")
+    >>> comet = State(r, v, t)
+
+Time can be specified with `~astropy.time.Time` objects, as above, or as an arbitrary `~astropy.units.Quantity` with units of time:
+
+   >>> comet = State(r, v, 0 * u.s)
 
 `~sbpy.activity.dust.dynamics.State` objects may also represent an array of objects:
 
 .. doctest::
 
-   >>> r = ([2, 0, 0], [0, 2, 0]) * u.au
-   >>> v = ([0, 30, 0], [30, 0, 0]) * u.km / u.s
-   >>> t = Time(["2023-12-08", "2023-12-09"])
-   >>> comets = State(r, v, t)
-   >>> len(comets)
-   2
+    >>> r = ([2, 0, 0], [0, 2, 0]) * u.au
+    >>> v = ([0, 30, 0], [30, 0, 0]) * u.km / u.s
+    >>> t = Time(["2023-12-08", "2023-12-09"])
+    >>> comets = State(r, v, t)
+    >>> len(comets)
+    2
 
 The `r`, `v`, and `t` attributes hold the position, velocity, and time for the object(s).  The first index iterates over the object, the second iterates over the x-, y-, and z-axes.
 
 .. doctest::
 
-   >>> comets.r.shape
-   (2, 3)
+    >>> comets.r.shape
+    (2, 3)
+
+Mathematical Operations
+^^^^^^^^^^^^^^^^^^^^^^^
+
+A few simple mathematical operations are possible:
+
+.. doctest::
+
+    >>> observer = State([1, 1, 0] * u.au, [15, -15, 0] * u.km / u.s, comet.t)
+    >>> obs_comet = comet - observer
+    >>> obs_comet.r
+    <Quantity [ 1.49597871e+08, -1.49597871e+08,  0.00000000e+00] km>
+    >>> obs_comet.v
+    <Quantity [-15.,  45.,   0.] km / s>
+    >>> abs(obs_comet)
+    (<Quantity 2.11563338e+08 km>, <Quantity 47.4341649 km / s>)
+
+To/From `SkyCoord`
+^^^^^^^^^^^^^^^^^^
+
+With coordinate frames specified and time provided with `~astropy.time.Time` objects, states may be converted to `~astropy.coordinates.SkyCoord` objects:
+
+.. doctest::
+
+    >>> comet.frame = "icrs"
+    >>> coords = comet.to_skycoord()
+    >>> coords
+    <SkyCoord (ICRS): (x, y, z) in km
+        (2.99195741e+08, 0., 0.)
+     (v_x, v_y, v_z) in km / s
+        (0., 30., 0.)>
+    >>>
+    >>> coords.representation_type = "spherical"
+    >>> coords
+    <SkyCoord (ICRS): (ra, dec, distance) in (deg, deg, km)
+        (0., 0., 2.99195741e+08)
+     (pm_ra, pm_dec, radial_velocity) in (mas / yr, mas / yr, km / s)
+        (6.52671948e+08, 0., 0.)>
+
+`States` may be generated from `SkyCoord` objects if they contain position, velocity, and time coordinates:
+
+    >>> from astropy.coordinates import SkyCoord
+    >>> coords = SkyCoord("1:23:45h -6:07:08d",
+    ...                   distance=1 * u.au,
+    ...                   pm_ra_cosdec=100 * u.arcsec / u.hr,
+    ...                   pm_dec=0 * u.arcsec / u.hr,
+    ...                   obstime=Time("2023-12-11"),
+    ...                   frame="icrs")
+    >>> state = State.from_skycoord(coords)
+
+Observing `States`
+^^^^^^^^^^^^^^^^^^
+
+the relative coordinate between two states can be computed with :meth:`~sbpy.activity.dust.dynamics.State.observe`:
+
+.. doctest::
+
+    >>> observer.frame = "icrs"
+    >>> observer.observe(comet)
+    <SkyCoord (ICRS): (ra, dec, distance) in (deg, deg, km)
+        (315., 0., 2.11563338e+08)
+     (pm_ra, pm_dec, radial_velocity) in (mas / yr, mas / yr, km / s)
+        (6.52671948e+08, 0., -42.42640687)>
 
 Dynamical models
 ----------------
