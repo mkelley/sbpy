@@ -313,7 +313,10 @@ class State:
 
         """
 
-        return State.from_skycoord(self.to_skycoord().transform_to(frame))
+        coords: SkyCoord = self.to_skycoord()
+        # seems to avoid an issue with the differentials:
+        coords.representation_type = "spherical"
+        return State.from_skycoord(coords.transform_to(frame))
 
     @_requires_time_object
     def observe(
