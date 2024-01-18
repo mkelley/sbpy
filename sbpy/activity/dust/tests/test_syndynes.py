@@ -55,6 +55,7 @@ class TestSyndynes:
 
         # try with BaseCoordinateFrame instances
         comet.frame = HeliocentricEclipticIAU76()
+        observer.frame = None
         with pytest.raises(ValueError):
             Syndynes(comet, betas, ages, observer=observer)
 
@@ -85,7 +86,7 @@ class TestSyndynes:
             expected = solver.solve(comet, comet.t - age)
             assert u.allclose(initial.r, expected.r)
             assert u.allclose(initial.v, expected.v)
-            assert all((initial.t - expected.t) == 0 * u.s)
+            assert u.isclose((initial.t - expected.t).to("s"), 0 * u.s)
 
     def test_solve(self, example_syndynes):
         comet, betas, ages, syn, observer = example_syndynes
@@ -133,7 +134,7 @@ class TestSyndynes:
 
         # remove the observer and verify outputs
         syn.observer = None
-        for i, (age, states) in enumerate(syn.syndynes()):
+        for i, (age, states) in enumerate(syn.synchrones()):
             assert age == ages[i]
             assert np.allclose((states.t - comet.t).jd, 0)
             assert np.allclose((coords.obstime - comet.t).jd, 0)

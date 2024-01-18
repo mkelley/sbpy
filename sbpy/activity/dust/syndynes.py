@@ -19,7 +19,12 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
 
-from .dynamics import FrameType, State, DynamicalModel, SolarGravityAndRadiationPressure
+from .dynamics import (
+    FrameInputTypes,
+    State,
+    DynamicalModel,
+    SolarGravityAndRadiationPressure,
+)
 
 
 class Syndynes:
@@ -139,7 +144,7 @@ class Syndynes:
     def get_syndyne(
         self,
         i: int,
-        frame: Optional[FrameType] = None,
+        frame: Optional[FrameInputTypes] = None,
     ) -> Tuple[float, State, SkyCoord]:
         """Get a single syndyne.
 
@@ -179,7 +184,7 @@ class Syndynes:
     def get_synchrone(
         self,
         i: int,
-        frame: Optional[FrameType] = None,
+        frame: Optional[FrameInputTypes] = None,
     ) -> Tuple[u.Quantity, State, SkyCoord]:
         """Get a single synchrone.
 
@@ -217,7 +222,7 @@ class Syndynes:
         return self.ages[i], syn, coords
 
     def syndynes(
-        self, frame: Optional[FrameType] = None
+        self, frame: Optional[FrameInputTypes] = None
     ) -> Tuple[float, State, SkyCoord]:
         """Iterator for each syndyne from `get_syndyne`.
 
@@ -237,7 +242,7 @@ class Syndynes:
             yield self.get_syndyne(i, frame)
 
     def synchrones(
-        self, frame: Optional[FrameType] = None
+        self, frame: Optional[FrameInputTypes] = None
     ) -> Tuple[u.Quantity, State, SkyCoord]:
         """Iterator for each synchrone from `get_synchrone`.
 
@@ -258,7 +263,7 @@ class Syndynes:
             yield self.get_synchrone(i, frame)
 
     def get_orbit(
-        self, dt: u.Quantity, frame: Optional[FrameType] = None
+        self, dt: u.Quantity, frame: Optional[FrameInputTypes] = None
     ) -> Union[State, Tuple[State, SkyCoord]]:
         """Calculate and observe the orbit of the dust source.
 

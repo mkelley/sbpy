@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 import abc
-from typing import Iterable, Union, Optional, Tuple, TypeVar
+from typing import Iterable, List, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 
@@ -27,6 +27,7 @@ except ImportError:
 from astropy.time import Time
 import astropy.units as u
 from astropy.coordinates import (
+    frame_transform_graph,
     SkyCoord,
     BaseCoordinateFrame,
     SphericalRepresentation,
@@ -46,7 +47,7 @@ class SolverFailed(SbpyException):
 
 
 StateType = TypeVar("StateType", bound="State")
-FrameType = TypeVar("FrameType", str, BaseCoordinateFrame)
+FrameInputTypes = TypeVar("FrameInputTypes", str, BaseCoordinateFrame)
 
 
 class State:
@@ -69,8 +70,7 @@ class State:
         Time, a scalar or shape = (N,).
 
     frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
-        Coordinate frame for ``r`` and ``v``. Defaults to
-        `~astropy.coordinates.HeliocentricEclipticIAU76` if given as ``None``.
+        Coordinate frame for ``r`` and ``v``.
 
 
     Examples
@@ -98,14 +98,14 @@ class State:
         r: u.Quantity,
         v: u.Quantity,
         t: Time,
-        frame: Optional[FrameType] = None,
+        frame: Optional[FrameInputTypes] = None,
     ) -> None:
         self.r = u.Quantity(r, "km")
         self.v = u.Quantity(v, "km/s")
-        self.t = Time([t] * len(self)) if t.ndim == 0 else t
+        self.t = Time(t)
         self.frame = frame
 
-        if (self.r.shape != self.v.shape) or (len(self) != len(self.t)):
+        if (self.r.shape != self.v.shape) or (len(self) != self.t.size):
             raise ValueError("Mismatch between lengths of vectors.")
 
     def __repr__(self) -> str:
@@ -234,23 +234,28 @@ class State:
 
     @t.setter
     def t(self, t):
-        self._t = t.tdb.to_value("et").reshape((-1,))
+        self._t = t.tdb.to_value("et")
+
+    @property
+    def frame(self) -> Union[BaseCoordinateFrame, None]:
+        return self._frame
+
+    @frame.setter
+    def frame(self, frame: Union[FrameInputTypes, None]) -> None:
+        if frame is None:
+            self._frame = None
+        elif isinstance(frame, BaseCoordinateFrame):
+            self._frame = frame
+        else:
+            self._frame = frame_transform_graph.lookup_name(frame)()
 
     def to_skycoord(self) -> SkyCoord:
         """State as a `~astropy.coordinates.SkyCoord` object."""
 
-        kwargs: dict = {}
-        if isinstance(self.frame, BaseCoordinateFrame):
-            kwargs["frame"] = self.frame.copy()
-            kwargs["frame"].representation_type = "cartesian"
-        else:
-            kwargs["frame"] = self.frame
-            kwargs["representation_type"] = "cartesian"
-
-        # when frame instances have obstime, SkyCoord will not accept it as a
-        # separate parameter
-        if not hasattr(kwargs["frame"], "obstime"):
-            kwargs["obstime"] = self.t[0]
+        if self.frame is None:
+            raise ValueError(
+                "Cannot create SkyCoord object from a State without a defined frame."
+            )
 
         return SkyCoord(
             x=self.x,
@@ -259,10 +264,12 @@ class State:
             v_x=self.v_x,
             v_y=self.v_y,
             v_z=self.v_z,
-            **kwargs,
+            obstime=self.t,
+            frame=type(self.frame),
+            representation_type="cartesian",
         )
 
-    def transform_to(self, frame: FrameType) -> StateType:
+    def transform_to(self, frame: FrameInputTypes) -> StateType:
         """Transform state into another reference frame.
 
 
@@ -284,7 +291,7 @@ class State:
     def observe(
         self,
         target: StateType,
-        frame: Optional[FrameType] = None,
+        frame: Optional[FrameInputTypes] = None,
     ) -> SkyCoord:
         """Project a target's position on to the sky.
 
@@ -304,7 +311,7 @@ class State:
 
         """
 
-        frame: FrameType = self.frame if frame is None else frame
+        frame: FrameInputTypes = self.frame if frame is None else frame
 
         # transform into the requested reference frame, then difference
         target_in_frame: State = target.transform_to(frame)
@@ -327,7 +334,12 @@ class State:
 
         """
 
-        frames: set = set([str(state.frame).lower() for state in states])
+        state: State
+        frames: List[Union[None, BaseCoordinateFrame]] = []
+        for state in states:
+            if state.frame not in frames:
+                frames.append(state.frame)
+
         if len(frames) != 1:
             raise ValueError("The coordinate frames must be identical.")
 
@@ -339,7 +351,7 @@ class State:
             format="et",
         )
 
-        return State(r, v, t, frame=list(frames)[0])
+        return State(r, v, t, frame=states[0].frame)
 
     @classmethod
     def from_skycoord(cls, coords: SkyCoord) -> StateType:
@@ -367,7 +379,7 @@ class State:
     def from_ephem(
         cls,
         eph: Ephem,
-        frame: Optional[FrameType] = None,
+        frame: Optional[FrameInputTypes] = None,
     ) -> StateType:
         """Initialize from an `~sbpy.data.Ephem` object.
 
@@ -533,7 +545,7 @@ class DynamicalModel(abc.ABC):
 
         result = solve_ivp(
             self.dx_dt,
-            (initial.t.et[0], final.t.et[0]),
+            (initial.t.et, final.t.et),
             initial.rv,
             args=args,
             **self.solver_kwargs,

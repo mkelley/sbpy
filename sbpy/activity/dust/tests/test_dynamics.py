@@ -92,13 +92,13 @@ class TestState:
         )
         assert (
             repr(state)
-            == """<State (heliocentriceclipticiau76):
+            == """<State (<HeliocentricEclipticIAU76 Frame (obstime=J2000.000)>):
  r
     [1.49597871e+08 1.49597871e+08 0.00000000e+00] km
  v
     [30.  0.  0.] km / s
  t
-    [7.12670469e+08]>"""
+    712670469.1832713>"""
         )
 
     def test_len(self):
@@ -204,7 +204,7 @@ class TestState:
         state = State(
             [[1, 2, 4], [7, 8, 9]] * u.au,
             [[30, -10, 5], [5, 4, 6]] * u.km / u.s,
-            Time("2022-08-02"),
+            [Time("2022-08-02")] * 2,
             frame="heliocentriceclipticiau76",
         )
         assert u.allclose(state.x, [1, 7] * u.au)
