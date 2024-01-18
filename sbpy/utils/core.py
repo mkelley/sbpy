@@ -6,11 +6,34 @@ created on March 12, 2019
 
 """
 
-__all__ = ["required_packages", "optional_packages"]
+__all__ = ["time_input", "required_packages", "optional_packages"]
 
+from typing import Callable
 from importlib import import_module
 from warnings import warn
+from astropy.time import Time
 from ..exceptions import RequiredPackageUnavailable, OptionalPackageUnavailable
+
+
+def time_input(func: Callable, **kwargs):
+    """Decorator that validates time inputs.
+
+
+    Examples
+    --------
+
+    >>> from sbpy.core import time_input
+    >>> @time_input(t=Time)
+    >>> def myfunction(t):
+    >>>     return t.mjd
+
+    >>> from sbpy.core import time_input
+    >>> @time_input(t=Time)
+    >>> def myfunction(t):
+    >>>     return t.mjd
+
+
+    """
 
 
 def required_packages(*packages, message=None):
@@ -49,7 +72,8 @@ def required_packages(*packages, message=None):
         except ModuleNotFoundError as exc:
             _message = "" if message is None else "  " + message
             raise RequiredPackageUnavailable(
-                f"`{package}` is required.{_message}") from None
+                f"`{package}` is required.{_message}"
+            ) from None
 
 
 def optional_packages(*packages, message=None):

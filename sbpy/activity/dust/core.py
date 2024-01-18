@@ -1,7 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
-sbpy Activity: Dust
-===================
+sbpy activity.dust.comae
+========================
 
 All things dust coma related.
 
@@ -30,6 +30,7 @@ from ..calib import Sun
 from ..spectroscopy import BlackbodySource
 from ..utils import optional_packages
 from .. import data as sbd
+from .. import exceptions as sbe
 from .. import units as sbu
 from ..spectroscopy.sources import SinglePointSpectrumError
 from .core import Aperture
@@ -337,8 +338,7 @@ class DustComaQuantity(u.SpecificTypeQuantity, metaclass=abc.ABCMeta):
 
         """
 
-        fluxd1cm = cls(1 * u.cm).to_fluxd(wfb, aper,
-                                          eph, unit=fluxd.unit, **kwargs)
+        fluxd1cm = cls(1 * u.cm).to_fluxd(wfb, aper, eph, unit=fluxd.unit, **kwargs)
 
         if isinstance(fluxd1cm, u.Magnitude):
             coma = cls((fluxd - fluxd1cm).physical * u.cm)
