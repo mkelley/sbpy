@@ -66,11 +66,20 @@ class State:
     v : `~astropy.units.Quantity`
         Velocity (x, y, z), shape = (3,) or (N, 3).
 
-    t : `~astropy.time.Time`
+    t : `~astropy.time.Time` or `~astropy.units.Quantity`
         Time, a scalar or shape = (N,).
 
     frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
         Coordinate frame for ``r`` and ``v``.
+
+
+    Attributes
+    ----------
+
+    relative_time : bool
+        ``True`` if ``t`` is relative to an arbitrary epoch (i.e., specified as
+        a `~astropy.units.Quantity`), ``False`` if ``t`` is absolute
+        (`~astropy.time.Time` object).
 
 
     Examples
@@ -82,6 +91,10 @@ class State:
     >>> r = [1e9, 1e9, 0] * u.km
     >>> v = [0, 0, 10] * u.km / u.s
     >>> t = Time("2022-07-24", scale="tdb")
+    >>> state = State(r, v, t)
+
+    Or, specify time with relative to an arbitrary epoch:
+    >>> t = 327 * u.day
     >>> state = State(r, v, t)
 
 
@@ -102,7 +115,7 @@ class State:
     ) -> None:
         self.r = u.Quantity(r, "km")
         self.v = u.Quantity(v, "km/s")
-        self.t = Time(t)
+        self.t = t
         self.frame = frame
 
         if (self.r.shape != self.v.shape) or (len(self) != self.t.size):
@@ -230,11 +243,18 @@ class State:
     @property
     def t(self) -> Time:
         """Time."""
-        return Time(self._t, format="et", scale="tdb")
+        if self.relative_time:
+            return u.Quantity(self._t, "s")
+        else:
+            return Time(self._t, format="et", scale="tdb")
 
     @t.setter
     def t(self, t):
-        self._t = t.tdb.to_value("et")
+        self.relative_time = isinstance(t, u.Quantity)
+        if self.relative_time:
+            self._t = t.to_value("s")
+        else:
+            self._t = Time(t).tdb.to_value("et")
 
     @property
     def frame(self) -> Union[BaseCoordinateFrame, None]:
@@ -255,6 +275,11 @@ class State:
         if self.frame is None:
             raise ValueError(
                 "Cannot create SkyCoord object from a State without a defined frame."
+            )
+
+        if self.relative_time:
+            raise ValueError(
+                "Cannot create SkyCoord object from State containing relative time."
             )
 
         return SkyCoord(
@@ -515,7 +540,7 @@ class DynamicalModel(abc.ABC):
     def solve(
         self,
         initial: State,
-        t_f: Time,
+        t_final: Time,
         *args,
     ) -> State:
         """Solve the equations of motion for a single particle.
@@ -525,11 +550,13 @@ class DynamicalModel(abc.ABC):
 
         Parameters
         ----------
-        initial : State
+        initial : `State`
             Initial state (position and velocity at time) of the particle.
 
-        t_f : Time
-            Time at which the solution is desired.
+        t_final : `~astropy.time.Time` or `~astropy.units.Quantity`
+            Time at which the solution is desired.  Use of ``Time`` versus
+            ``Quantity`` must match how time is defined in the ``initial``
+            state.
 
         *args :
             Additional arguments passed to `dx_dt` and `df_drv`.
@@ -541,11 +568,20 @@ class DynamicalModel(abc.ABC):
 
         """
 
-        final = State([0, 0, 0], [0, 0, 0], t_f, frame=initial.frame)
+        final: State = State([0, 0, 0], [0, 0, 0], t_final, frame=initial.frame)
+
+        t0: float
+        t1: float
+        if initial.relative_time:
+            t0 = initial.t.to_value("s")
+            t1 = final.t.to_value("s")
+        else:
+            t0 = initial.t.et
+            t1 = final.t.et
 
         result = solve_ivp(
             self.dx_dt,
-            (initial.t.et, final.t.et),
+            (t0, t1),
             initial.rv,
             args=args,
             **self.solver_kwargs,

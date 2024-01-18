@@ -39,11 +39,22 @@ class TestState:
         assert u.allclose(state.r, [1, 1, 0] * u.au)
         assert u.allclose(state.v, [30000, 0, 0] * u.m / u.s)
         assert np.isclose((state.t - t).jd, 0)
+        assert not state.relative_time
 
         # test internal state values
         assert np.allclose(state._r, ([1, 1, 0] * u.au).to_value("km"))
         assert np.allclose(state._v, ([30, 0, 0] * u.km / u.s).to_value("km / s"))
         assert np.isclose(state._t, t.tdb.to_value("et"))
+
+        # initialize with relative time
+        state = State(
+            [1, 1, 0] * u.au,
+            [30, 0, 0] * u.km / u.s,
+            0 * u.s,
+        )
+        assert state.relative_time
+        assert u.isclose(state.t, 0 * u.s)
+        assert u.isclose(state._t, 0)
 
     def test_init_shape_mismatch(self):
         with pytest.raises(ValueError):
@@ -300,7 +311,7 @@ class TestState:
         assert u.allclose(state.r, r, atol=130 * u.km, rtol=1e-9)
         assert u.allclose(state.v, v, atol=2 * u.mm / u.s, rtol=1e-9)
 
-    def test_skycoord_property(self):
+    def test_to_skycoord(self):
         """Test conversion of coords to internal state and back to coords."""
         coords = SkyCoord(
             ra=348.37706 * u.deg,
@@ -331,6 +342,26 @@ class TestState:
             frame="heliocentriceclipticiau76",
         ).to_skycoord()
         assert isinstance(new_coords.frame, HeliocentricEclipticIAU76)
+
+    def test_to_skycoord_error(self):
+        state = State(
+            [1, 2, 3] * u.km,
+            [4, 5, 6] * u.km / u.s,
+            0 * u.s,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot create SkyCoord object from a State without a defined frame.",
+        ):
+            state.to_skycoord()
+
+        state.frame = "heliocentriceclipticiau76"
+        with pytest.raises(
+            ValueError,
+            match="Cannot create SkyCoord object from State containing relative time.",
+        ):
+            state.to_skycoord()
 
     def test_observe(self):
         """Observe comet Encke from the Earth.
@@ -607,6 +638,20 @@ class TestFreeExpansion:
 
         assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
         assert np.allclose(final.v.value, [0, -1, 1])
+
+    def test_relative_time(self):
+        r = [0, 1e6, 0]
+        v = [0, -1, 1]
+
+        solver = FreeExpansion()
+
+        initial = State(r, v, 0 * u.s)
+        t_f = 1e6 * u.s
+        final = solver.solve(initial, t_f)
+
+        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
+        assert np.allclose(final.v.value, [0, -1, 1])
+        assert final.t == t_f
 
 
 class TestSolarGravity:
