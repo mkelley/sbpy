@@ -18,7 +18,11 @@ import abc
 from typing import Iterable, Union, Optional, Tuple, TypeVar
 
 import numpy as np
-from scipy.integrate import solve_ivp
+
+try:
+    from scipy.integrate import solve_ivp
+except ImportError:
+    pass
 
 from astropy.time import Time
 import astropy.units as u
@@ -33,6 +37,7 @@ import astropy.constants as const
 from ... import data as sbd
 from ...data.ephem import Ephem
 from ...exceptions import SbpyException
+from ...utils.decorators import requires
 from ... import time  # noqa: F401
 
 
@@ -434,6 +439,7 @@ class DynamicalModel(abc.ABC):
 
     """
 
+    @requires("scipy")
     def __init__(self, **kwargs):
         self.solver_kwargs: dict = dict(
             rtol=1e-8,

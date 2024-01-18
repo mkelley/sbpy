@@ -5,8 +5,13 @@ from unittest import mock
 import pytest
 import numpy as np
 import astropy.units as u
-import synphot
-from ..comae import Afrho, Efrho, phase_HalleyMarcus
+
+try:
+    import synphot
+except ImportError:
+    pass
+
+from ..core import Afrho, Efrho, phase_HalleyMarcus
 from ...core import CircularAperture
 from ....calib import solar_fluxd
 from ....units import VEGAmag, JMmag

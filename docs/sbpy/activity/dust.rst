@@ -214,6 +214,7 @@ State objects
 
 `sbpy` uses `~sbpy.activity.dust.dynamics.State` objects to encapsulate the position and velocity of an object at a given time.  Create a `~sbpy.activity.dust.dynamics.State` for a comet at :math:`x=2` au, moving along the y-axis at a speed of 30 km/s:
 
+
 .. doctest::
 
    >>> from astropy.time import Time
@@ -264,7 +265,7 @@ First, define the source of the syndynes, a comet at 2 au from the Sun:
 
 Next, initialize the syndyne object:
 
-.. doctest::
+.. doctest-requires:: scipy
 
    >>> import numpy as np
    >>> from sbpy.activity.dust import Syndynes
@@ -285,6 +286,7 @@ Next, initialize the syndyne object:
 To compute the syndynes, use the :meth:`~sbpy.activity.dust.syndynes.Syndynes.solve` method.  The computed particle positions are saved in the :attr:`~sbpy.activity.dust.syndynes.Syndynes.particles` attribute.  For our example, the 4 :math:`\beta`-values and the 50 ages produce 150 particles:
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> syn.solve()
    >>> print(len(syn.particles))
@@ -293,6 +295,7 @@ To compute the syndynes, use the :meth:`~sbpy.activity.dust.syndynes.Syndynes.so
 Inspect the results using :meth:`~sbpy.activity.dust.syndynes.Syndynes.syndynes`, which returns an iterator containing each syndyne's :math:`\beta`-value and particle states.  For example, we can compute the maximum linear distance from the comet to the syndyne particles:
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> for beta, states in syn.syndynes():
    ...     r, v = abs(states - comet)
@@ -305,6 +308,7 @@ Inspect the results using :meth:`~sbpy.activity.dust.syndynes.Syndynes.syndynes`
 Individual syndynes may be produced with the :meth:`~sbpy.activity.dust.syndynes.Syndynes.get_syndyne` method and a syndyne index.  The index for the syndyne matches the index of the ``betas`` array.  To get the :math:`\beta=0.1` syndyne from our example:
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> print(syn.betas)
    [1.   0.1  0.01 0.  ]
@@ -318,6 +322,7 @@ Synchrones
 Synchrones are also simulated with the `~sbpy.activity.dust.syndynes.Syndynes` class, but instead generated with the :meth:`~sbpy.activity.dust.syndynes.Syndynes.get_synchrone` and :meth:`~sbpy.activity.dust.syndynes.Syndynes.synchrones` methods.
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> age, states = syn.get_synchrone(24)
    >>> r, v = abs(states)
@@ -331,6 +336,7 @@ Projecting onto the sky
 Syndynes and synchrones may be projected onto the sky as seen by a telescope.  This requires an observer and sky coordinate frames.  `sbpy` uses `astropy`'s reference frames, which may be specified as a string or an instance of a reference frame object.  For precision work, the states provided to the `~sbpy.activity.dust.syndynes.Syndynes` object should be in a heliocentric coordinate frame.  Here, we use a J2000 heliocentric ecliptic coordinate frame that <JPL Horizons `https://ssd.jpl.nasa.gov/horizons/manual.html#frames`>_ and the <NAIF SPICE toolkit `https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html#Frames%20Supported%20in%20SPICE`>_: `"heliocentriceclipticiau76"`:
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> comet.frame = "heliocentriceclipticiau76"
    >>> observer = State(
@@ -345,6 +351,7 @@ Syndynes and synchrones may be projected onto the sky as seen by a telescope.  T
 With the observer and coordinate frames defined, the syndyne and synchrone methods will return `astropy.coordinates.SkyCoord` objects that represent the sky positions of the test particles.  Here, we request the coordinate object is returned in an ICRS-based reference frame and print a sample of the coordinates:
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> beta, states, coords = syn.get_syndyne(0, frame="icrs")
    >>> print("\n".join(coords[::5].to_string("hmsdms", precision=0)))
@@ -360,6 +367,7 @@ Source object orbit
 Calculating the positions of the projected orbit of the source object may be helpful for interpreting an observation or a set of syndynes.  They are calculated with the :meth:`~sbpy.activity.dust.synydnes.Syndynes.get_orbit` method:
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> dt = np.linspace(-2, 2) * u.d
    >>> orbit, coords = syn.get_orbit(dt, frame="icrs")
@@ -372,6 +380,7 @@ Other dynamical models
 In this example, we compute the syndynes of a comet orbiting β Pic (1.8 solar masses) by sub-classing `~sbpy.activity.dust.dynamics.SolarGravityAndRadiationPressure` and updating :math:`GM`, the mass of the star times the gravitational constant:
 
 .. doctest::
+.. doctest-requires:: scipy
 
    >>> import astropy.constants as const
    >>> from sbpy.activity.dust import SolarGravityAndRadiationPressure
@@ -389,6 +398,7 @@ Plotting syndynes and synchrones
 Generally, we are interested in plotting syndynes and synchrones on an image of a comet.  The accuracy of the coordinates object depends on the the comet and observer states, but also on whether or not light travel time is accounted for.  The `sbpy` testing suite shows that arcsecond-level accuracy is possible, but this is generally not accurate enough for direct comparison to typical images of comets.  Instead, it helps to compute the positions of the syndynes and synchrone coordinate objects relative to the comet, and plot the results.
 
 .. doctest::
+.. doctest-requires:: scipy,matplotlib
 
    >>> from itertools import islice
    >>> import matplotlib.pyplot as plt

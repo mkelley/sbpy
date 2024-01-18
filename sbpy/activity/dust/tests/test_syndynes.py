@@ -11,6 +11,9 @@ from ..syndynes import Syndynes, State
 from ..dynamics import SolarGravity, SolarGravityAndRadiationPressure
 
 
+pytest.importorskip("scipy")
+
+
 @pytest.fixture
 def example_syndynes():
     comet = State(
