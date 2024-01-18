@@ -66,8 +66,8 @@ class Syndynes:
     def __init__(
         self,
         source: State,
-        betas: Union[Iterable, u.Quantity[u.dimensionless_unscaled]],
-        ages: u.Quantity[u.s],
+        betas: Union[Iterable, u.Quantity],
+        ages: u.Quantity,
         observer: Optional[State] = None,
         solver: Optional[DynamicalModel] = SolarGravityAndRadiationPressure(),
     ) -> None:
@@ -75,10 +75,8 @@ class Syndynes:
             raise ValueError("Only one source state vector allowed.")
 
         self.source: State = source
-        self.betas: u.Quantity[u.dimensionless_unscaled] = u.Quantity(
-            betas, ""
-        ).reshape((-1,))
-        self.ages: u.Quantity[u.s] = u.Quantity(ages, "s").reshape((-1,))
+        self.betas: u.Quantity = u.Quantity(betas, "").reshape((-1,))
+        self.ages: u.Quantity = u.Quantity(ages, "s").reshape((-1,))
 
         self.observer: State
         if observer is None:
@@ -181,7 +179,7 @@ class Syndynes:
         self,
         i: int,
         frame: Optional[FrameType] = None,
-    ) -> Tuple[u.Quantity[u.physical.time], State, SkyCoord]:
+    ) -> Tuple[u.Quantity, State, SkyCoord]:
         """Get a single synchrone.
 
 
@@ -239,7 +237,7 @@ class Syndynes:
 
     def synchrones(
         self, frame: Optional[FrameType] = None
-    ) -> Tuple[u.Quantity[u.physical.time], State, SkyCoord]:
+    ) -> Tuple[u.Quantity, State, SkyCoord]:
         """Iterator for each synchrone from `get_synchrone`.
 
 
@@ -259,7 +257,7 @@ class Syndynes:
             yield self.get_synchrone(i, frame)
 
     def get_orbit(
-        self, dt: u.Quantity[u.s], frame: Optional[FrameType] = None
+        self, dt: u.Quantity, frame: Optional[FrameType] = None
     ) -> Union[State, Tuple[State, SkyCoord]]:
         """Calculate and observe the orbit of the dust source.
 

@@ -25,15 +25,15 @@ try:
 except ImportError:
     pass
 
-from .. import bib
-from ..calib import Sun
-from ..spectroscopy import BlackbodySource
-from ..utils import optional_packages
-from .. import data as sbd
-from .. import exceptions as sbe
-from .. import units as sbu
-from ..spectroscopy.sources import SinglePointSpectrumError
-from .core import Aperture
+from ... import bib
+from ...calib import Sun
+from ...spectroscopy import BlackbodySource
+from ...utils import optional_packages
+from ... import data as sbd
+from ... import exceptions as sbe
+from ... import units as sbu
+from ...spectroscopy.sources import SinglePointSpectrumError
+from ..core import Aperture
 
 
 @bib.cite(

@@ -6,34 +6,11 @@ created on March 12, 2019
 
 """
 
-__all__ = ["time_input", "required_packages", "optional_packages"]
+__all__ = ["required_packages", "optional_packages"]
 
-from typing import Callable
 from importlib import import_module
 from warnings import warn
-from astropy.time import Time
 from ..exceptions import RequiredPackageUnavailable, OptionalPackageUnavailable
-
-
-def time_input(func: Callable, **kwargs):
-    """Decorator that validates time inputs.
-
-
-    Examples
-    --------
-
-    >>> from sbpy.core import time_input
-    >>> @time_input(t=Time)
-    >>> def myfunction(t):
-    >>>     return t.mjd
-
-    >>> from sbpy.core import time_input
-    >>> @time_input(t=Time)
-    >>> def myfunction(t):
-    >>>     return t.mjd
-
-
-    """
 
 
 def required_packages(*packages, message=None):

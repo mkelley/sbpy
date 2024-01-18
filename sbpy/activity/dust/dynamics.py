@@ -90,8 +90,8 @@ class State:
 
     def __init__(
         self,
-        r: u.Quantity[u.m],
-        v: u.Quantity[u.m / u.s],
+        r: u.Quantity,
+        v: u.Quantity,
         t: Time,
         frame: Optional[FrameType] = None,
     ) -> None:
@@ -154,63 +154,63 @@ class State:
             frame=self.frame,
         )
 
-    def __abs__(self) -> Tuple[u.Quantity[u.m], u.Quantity[u.m / u.s]]:
+    def __abs__(self) -> Tuple[u.Quantity, u.Quantity]:
         """Return the magnitude of the position and velocity."""
         r = np.sqrt(np.sum(self.r**2, axis=-1))
         v = np.sqrt(np.sum(self.v**2, axis=-1))
         return r, v
 
     @property
-    def r(self) -> u.Quantity[u.km]:
+    def r(self) -> u.Quantity:
         """Position vector."""
         return u.Quantity(self._r, u.km)
 
     @r.setter
     @u.quantity_input
-    def r(self, r: u.Quantity[u.km]):
+    def r(self, r: u.Quantity):
         if r.ndim > 3 or r.shape[r.ndim - 1] != 3:
             raise ValueError("Must have shape (3,) or (N, 3).")
         self._r = r.to_value(u.km)
 
     @property
-    def x(self) -> u.Quantity[u.km]:
+    def x(self) -> u.Quantity:
         """x component of the position vector."""
         return self.r[..., 0]
 
     @property
-    def y(self) -> u.Quantity[u.km]:
+    def y(self) -> u.Quantity:
         """y component of the position vector."""
         return self.r[..., 1]
 
     @property
-    def z(self) -> u.Quantity[u.km]:
+    def z(self) -> u.Quantity:
         """z component of the position vector."""
         return self.r[..., 2]
 
     @property
-    def v(self) -> u.Quantity[u.km / u.s]:
+    def v(self) -> u.Quantity:
         """Velocity vector."""
         return u.Quantity(self._v, u.km / u.s)
 
     @v.setter
     @u.quantity_input
-    def v(self, v: u.Quantity[u.km / u.s]):
+    def v(self, v: u.Quantity):
         if v.ndim > 3 or v.shape[v.ndim - 1] != 3:
             raise ValueError("Must have shape (3,) or (N, 3).")
         self._v = v.to_value(u.km / u.s)
 
     @property
-    def v_x(self) -> u.Quantity[u.km / u.s]:
+    def v_x(self) -> u.Quantity:
         """x component of the velocity vector."""
         return self.v[..., 0]
 
     @property
-    def v_y(self) -> u.Quantity[u.km / u.s]:
+    def v_y(self) -> u.Quantity:
         """y component of the velocity vector."""
         return self.v[..., 1]
 
     @property
-    def v_z(self) -> u.Quantity[u.km / u.s]:
+    def v_z(self) -> u.Quantity:
         """z component of the velocity vector."""
         return self.v[..., 2]
 
@@ -392,10 +392,10 @@ class State:
         )
 
         if all([x in eph for x in rectangular]):
-            r: u.Quantity[u.physical.length] = (
+            r: u.Quantity = (
                 u.Quantity([eph["x"], eph["y"], eph["z"]]).reshape((3, len(eph))).T
             )
-            v: u.Quantity[u.physical.speed] = (
+            v: u.Quantity = (
                 u.Quantity([eph["vx"], eph["vy"], eph["vz"]]).reshape((3, len(eph))).T
             )
             return cls(r, v, eph["date"], frame=frame)
@@ -410,12 +410,8 @@ class State:
             ).to_cartesian(base=c)
             c = c.to_cartesian()
 
-            r: u.Quantity[u.physical.length] = (
-                u.Quantity([c.x, c.y, c.z]).reshape((3, len(c))).T
-            )
-            v: u.Quantity[u.physical.speed] = (
-                u.Quantity([d.x, d.y, d.z]).reshape((3, len(c))).T
-            )
+            r: u.Quantity = u.Quantity([c.x, c.y, c.z]).reshape((3, len(c))).T
+            v: u.Quantity = u.Quantity([d.x, d.y, d.z]).reshape((3, len(c))).T
             return cls(r, v, eph["date"], frame=frame)
 
         raise ValueError(
