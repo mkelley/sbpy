@@ -88,7 +88,9 @@ class Syndynes:
         if observer is None:
             self.observer = None
         else:
-            if observer.frame != source.frame:
+            if (observer.frame is None and source.frame is not None) or (
+                observer.frame != source.frame
+            ):
                 raise ValueError("source and observer frames are not equal.")
             self.observer = observer
 

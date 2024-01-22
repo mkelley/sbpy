@@ -32,6 +32,8 @@ from astropy.coordinates import (
     BaseCoordinateFrame,
     SphericalRepresentation,
     SphericalDifferential,
+    CartesianRepresentation,
+    CartesianDifferential,
 )
 import astropy.constants as const
 
@@ -256,18 +258,40 @@ class State:
         else:
             self._t = Time(t).tdb.to_value("et")
 
+    relative_time: bool = False
+    """``True`` if ``t`` is relative to an arbitrary epoch (i.e., specified as a
+    `~astropy.units.Quantity`), ``False`` if ``t`` is absolute
+    (`~astropy.time.Time` object)."""
+
     @property
     def frame(self) -> Union[BaseCoordinateFrame, None]:
         return self._frame
 
     @frame.setter
     def frame(self, frame: Union[FrameInputTypes, None]) -> None:
-        if frame is None:
-            self._frame = None
-        elif isinstance(frame, BaseCoordinateFrame):
-            self._frame = frame
+        self._frame = self._get_frame_instance(frame)
+
+    @staticmethod
+    def _get_frame_instance(
+        frame_input: Union[None, FrameInputTypes]
+    ) -> Union[None, BaseCoordinateFrame]:
+        """Get a frame instance or ``None`` based on allowed ``State`` frame
+        input."""
+
+        frame: Union[None, BaseCoordinateFrame]
+        if frame_input is None:
+            frame = None
+        elif isinstance(frame_input, str):
+            frame_class = frame_transform_graph.lookup_name(frame_input)
+            if frame_class is None:
+                raise ValueError(f"Invalid frame name: {frame_input}")
+            frame = frame_class()
+        elif isinstance(frame_input, BaseCoordinateFrame):
+            frame = type(frame_input)()  # to avoid propagating any data with the frame
         else:
-            self._frame = frame_transform_graph.lookup_name(frame)()
+            frame = frame_input()
+
+        return frame
 
     def to_skycoord(self) -> SkyCoord:
         """State as a `~astropy.coordinates.SkyCoord` object."""
@@ -300,7 +324,7 @@ class State:
 
         Parameters
         ----------
-        frame : string or `~astropy.coordinates.BaseCoordinateFrame`, optional
+        frame : string or `~astropy.coordinates.BaseCoordinateFrame`
             Transform into this reference frame.
 
 
@@ -311,7 +335,24 @@ class State:
 
         """
 
-        return State.from_skycoord(self.to_skycoord().transform_to(frame))
+        if self.relative_time:
+            raise ValueError("Frame transformations require time as a `Time` object.")
+
+        data: CartesianRepresentation = CartesianRepresentation(
+            self.r.T,
+            differentials={"s": CartesianDifferential(self.v.T)},
+        )
+        original: BaseCoordinateFrame = type(self.frame)(data, obstime=self.t)
+
+        _frame: BaseCoordinateFrame = self._get_frame_instance(frame)
+        transformed: BaseCoordinateFrame = original.transform_to(_frame)
+
+        return State(
+            transformed.cartesian.get_xyz().T,
+            transformed.cartesian.differentials["s"].get_d_xyz().T,
+            self.t,
+            frame=_frame,
+        )
 
     def observe(
         self,
@@ -397,7 +438,10 @@ class State:
         r: u.Quantity = u.Quantity([_coords.x, _coords.y, _coords.z]).T
         v: u.Quantity = u.Quantity([_coords.v_x, _coords.v_y, _coords.v_z]).T
         t: Time = coords.obstime
-        return cls(r, v, t, frame=coords.frame)
+        frame: Union[None, BaseCoordinateFrame] = (
+            None if coords.frame is None else type(coords.frame)
+        )
+        return cls(r, v, t, frame=frame)
 
     @classmethod
     @sbd.dataclass_input

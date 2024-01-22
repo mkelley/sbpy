@@ -22,7 +22,8 @@ from ..dynamics import (
 )
 
 
-pytest.importorskip("scipy")
+scipy = pytest.importorskip("scipy")
+scipy_version = [int(x) for x in scipy.__version__.split(".")]
 
 
 class TestState:
@@ -93,6 +94,29 @@ class TestState:
 
         with pytest.raises(ValueError):
             State(bad * u.km, good * u.km / u.s, t)
+
+    def test_frame_inputs(self):
+        data = ([1, 0, 0] * u.au, [0, 30, 0] * u.km / u.s, Time("2024-01-21"))
+
+        assert State(*data, frame=None).frame is None
+
+        assert isinstance(
+            State(*data, frame="heliocentriceclipticiau76").frame,
+            HeliocentricEclipticIAU76,
+        )
+
+        with pytest.raises(ValueError, match="Invalid frame"):
+            State(*data, frame="asdf")
+
+        assert isinstance(
+            State(*data, frame=HeliocentricEclipticIAU76).frame,
+            HeliocentricEclipticIAU76,
+        )
+
+        assert isinstance(
+            State(*data, frame=HeliocentricEclipticIAU76()).frame,
+            HeliocentricEclipticIAU76,
+        )
 
     def test_repr(self):
         state = State(
@@ -690,6 +714,9 @@ class TestSolarGravity:
         solver = SolarGravity()
         assert u.isclose(solver.GM, const.G * const.M_sun)
 
+    @pytest.mark.skipif(
+        "scipy_version[0] < 2 and scipy_version[1] < 8", reason="requires scipy>=1.8"
+    )
     def test_solverfailed(self):
         r = [0, 1, 0] * u.au
         v = [0, -1, 1] * u.km / u.s
