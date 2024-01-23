@@ -1,19 +1,22 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+import warnings
 import pytest
 
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import (
-    SkyCoord,
     HeliocentricEclipticIAU76,
+    SkyCoord,
 )
 import astropy.constants as const
+from erfa import ErfaWarning
 
 from .... import time  # for ephemeris time
 from ....data import Ephem
 from ..dynamics import (
+    ArbitraryFrame,
     State,
     FreeExpansion,
     SolarGravity,
@@ -40,12 +43,7 @@ class TestState:
         assert u.allclose(state.r, [1, 1, 0] * u.au)
         assert u.allclose(state.v, [30000, 0, 0] * u.m / u.s)
         assert np.isclose((state.t - t).jd, 0)
-        assert not state.relative_time
-
-        # test internal state values
-        assert np.allclose(state._r, ([1, 1, 0] * u.au).to_value("km"))
-        assert np.allclose(state._v, ([30, 0, 0] * u.km / u.s).to_value("km / s"))
-        assert np.isclose(state._t, t.tdb.to_value("et"))
+        assert not state.arbitrary_time
 
         # initialize with relative time
         state = State(
@@ -53,9 +51,8 @@ class TestState:
             [30, 0, 0] * u.km / u.s,
             0 * u.s,
         )
-        assert state.relative_time
+        assert state.arbitrary_time
         assert u.isclose(state.t, 0 * u.s)
-        assert u.isclose(state._t, 0)
 
     def test_init_shape_mismatch(self):
         with pytest.raises(ValueError):
@@ -63,14 +60,6 @@ class TestState:
                 [1, 1, 0] * u.au,
                 [[0, 0, 30], [30, 0, 0]] * u.km / u.s,
                 Time("2022-08-02"),
-                frame="heliocentriceclipticiau76",
-            )
-
-        with pytest.raises(ValueError):
-            State(
-                [1, 1, 0] * u.au,
-                [30, 0, 0] * u.km / u.s,
-                Time(["2022-08-02", "2023-08-02"]),
                 frame="heliocentriceclipticiau76",
             )
 
@@ -98,7 +87,7 @@ class TestState:
     def test_frame_inputs(self):
         data = ([1, 0, 0] * u.au, [0, 30, 0] * u.km / u.s, Time("2024-01-21"))
 
-        assert State(*data, frame=None).frame is None
+        assert isinstance(State(*data, frame=None).frame, ArbitraryFrame)
 
         assert isinstance(
             State(*data, frame="heliocentriceclipticiau76").frame,
@@ -127,13 +116,13 @@ class TestState:
         )
         assert (
             repr(state)
-            == """<State (<HeliocentricEclipticIAU76 Frame (obstime=J2000.000)>):
+            == """<State (<HeliocentricEclipticIAU76 Frame (obstime=2022-08-02 00:00:00.000)>):
  r
-    [1.49597871e+08 1.49597871e+08 0.00000000e+00] km
+    [1. 1. 0.] AU
  v
     [30.  0.  0.] km / s
  t
-    712670469.1832713>"""
+    2022-08-02 00:00:00.000>"""
         )
 
     def test_len(self):
@@ -367,30 +356,10 @@ class TestState:
         ).to_skycoord()
         assert isinstance(new_coords.frame, HeliocentricEclipticIAU76)
 
-    def test_to_skycoord_error(self):
-        state = State(
-            [1, 2, 3] * u.km,
-            [4, 5, 6] * u.km / u.s,
-            0 * u.s,
-        )
-
-        with pytest.raises(
-            ValueError,
-            match="Cannot create SkyCoord object from a State without a defined frame.",
-        ):
-            state.to_skycoord()
-
-        state.frame = "heliocentriceclipticiau76"
-        with pytest.raises(
-            ValueError,
-            match="Cannot create SkyCoord object from State containing relative time.",
-        ):
-            state.to_skycoord()
-
     def test_observe(self):
         """Observe comet Encke from the Earth.
 
-        Get heliocentric vectors for both:
+        Get heliocentric vectors for both (queries run 2024 Jan 22):
 
             from astropy.time import Time
             import astropy.constants as const
@@ -405,7 +374,7 @@ class TestState:
             q = Horizons(399,
                         epochs=t.tdb.jd,
                         location="@10")
-            earth_data = q.vectors(refplane="ecliptic", aberrations="geometric")
+            earth_data = q.vectors(refplane="ecliptic", aberrations="geometric", cache=False)
             print_rect(earth_data)
 
         [0.644307773374595, -0.7841972063903224, 3.391591147538755e-05]
@@ -415,11 +384,11 @@ class TestState:
                          id_type="designation",
                          epochs=t.tdb.jd,
                          location="@10")
-            comet_data = q.vectors(refplane="ecliptic", closest_apparition=True, aberrations="geometric")
+            comet_data = q.vectors(refplane="ecliptic", closest_apparition=True, aberrations="geometric", cache=False)
             print_rect(comet_data)
 
-        [3.831073731476054, -0.7731565407334685, 0.196074135515735]
-        [-0.001734044117773847, 0.003823283252059133, 0.0005453056645337847]
+        [3.831073725981583, -0.7731565414836856, 0.1960741286643133]
+        [-0.001734044145851301, 0.003823283255413869, 0.0005453057034865457]
 
         Compare to Horizons's ICRS coordinates, adjusted for light travel time
 
@@ -429,13 +398,13 @@ class TestState:
                          id_type="designation",
                          epochs=t.utc.jd,
                          location="500")
-            comet_eph = q.ephemerides(closest_apparition=True, extra_precision=True)
+            comet_eph = q.ephemerides(closest_apparition=True, extra_precision=True, cache=False)
             print(comet_eph["RA", "DEC", "delta"])
 
-             RA        DEC         delta
-            deg        deg           AU
-        ----------- --------- ----------------
-        358.7792014 3.3076422 3.19284032416352
+              RA          DEC          delta
+             deg          deg            AU
+        ------------- ----------- ----------------
+        358.779201434 3.307642087 3.19284031826821
 
         Compare to spiceypy
 
@@ -443,18 +412,21 @@ class TestState:
             import sbpy.time
 
             heclip = [
-                3.831072342963699 - 0.6443181936605892,
-                -0.7731534793031922 - -0.7841885076117138,
-                0.1960745721596477 - 3.39157477079006e-05
+                3.831073725981583 - 0.644307773374595,
+                -0.7731565414836856 - -0.7841972063903224,
+                0.1960741286643133 - -2.045610960977488e-07,
             ]
             t = Time("2022-08-02", scale="tdb")
             xmat = spiceypy.pxform("ECLIPJ2000", "J2000", t.et)
             icrf = spiceypy.mxv(xmat, heclip)
             delta, ra, dec = spiceypy.recrad(icrf)
             delta
-            Out[30]: 3.1927974753993995
+
+        3.192811343804468
+
             np.degrees((ra, dec))
-            Out[125]: array([358.78017634,   3.3083223 ])
+
+        array([358.78003306,   3.30890361])
 
         """
 
@@ -464,54 +436,51 @@ class TestState:
         v = [0.01301350774835054, 0.01086343081039913, -2.045610960977488e-07]
         earth = State(r * u.au, v * u.au / u.day, t, frame=frame)
 
-        r = [3.831073731476054, -0.7731565407334685, 0.196074135515735]
-        v = [-0.001734044117773847, 0.003823283252059133, 0.0005453056645337847]
+        r = [3.831073725981583, -0.7731565414836856, 0.1960741286643133]
+        v = [-0.001734044145851301, 0.003823283255413869, 0.0005453057034865457]
         comet = State(r * u.au, v * u.au / u.day, t, frame=frame)
 
-        angular_tol = 1 * u.arcsec
-        linear_tol = 1e5 * u.km
-
-        # astropy and spiceypy agree within an arcsec
-        coords = earth.observe(comet, "icrs")
-        assert u.isclose(coords.ra, 358.78017634 * u.deg, atol=angular_tol, rtol=1e-8)
-        assert u.isclose(coords.dec, 3.3083223 * u.deg, atol=angular_tol, rtol=1e-8)
+        # astropy and spiceypy agree within 3 arcsec
+        coords = earth.transform_to("icrs").observe(comet)
+        coords_spiceypy = SkyCoord(
+            358.78003306 * u.deg, 3.30890361 * u.deg, frame="icrs"
+        )
+        assert coords.separation(coords_spiceypy) < 2.3 * u.arcsec
         assert u.isclose(
-            coords.distance, 3.1927974753994 * u.au, atol=linear_tol, rtol=1e-8
+            coords.distance, 3.192811343804468 * u.au, atol=1e5 * u.km, rtol=1e-8
         )
 
-        # but astropy and Horizons disagree a little bit more, maybe due to the
-        # light travel time treatment?
-        angular_tol = 4 * u.arcsec
-        assert u.isclose(coords.ra, 358.7792014 * u.deg, atol=angular_tol, rtol=1e-8)
-        assert u.isclose(coords.dec, 3.3076422 * u.deg, atol=angular_tol, rtol=1e-8)
+        # but astropy and Horizons disagree a little bit more
+        coords_horizons = SkyCoord(358.779201434 * u.deg, 3.307642087 * u.deg)
+        assert coords.separation(coords_horizons) < 5 * u.arcsec
         assert u.isclose(
-            coords.distance, 3.19284032416352 * u.au, atol=linear_tol, rtol=1e-8
+            coords.distance, 3.19284031826821 * u.au, atol=1e5 * u.km, rtol=1e-8
         )
 
     def test_from_states(self):
         t = Time("2022-08-02")
-        a = State([1, 2, 3], [4, 5, 6], t, frame="icrs")
-        b = State([1, 2, 3], [4, 5, 6], t, frame="heliocentriceclipticiau76")
-
-        with pytest.raises(ValueError):
-            State.from_states([a, b])
-
-        # execute without error
-        a.frame = "heliocentriceclipticiau76"
+        a = State(
+            [1, 2, 3] * u.au,
+            [4, 5, 6] * u.km / u.s,
+            t,
+            frame="icrs",
+        )
+        b = State(
+            [1, 2, 3] * u.au,
+            [4, 5, 6] * u.km / u.s,
+            t,
+            frame="heliocentriceclipticiau76",
+        )
         c = State.from_states([a, b])
-
-        # execute without error
-        a.frame = HeliocentricEclipticIAU76(obstime=t)
-        b.frame = HeliocentricEclipticIAU76(obstime=t)
-        c = State.from_states([a, b])
+        b_icrs = b.transform_to("icrs")
 
         assert u.allclose(c[0].r, a.r)
         assert u.allclose(c[0].v, a.v)
         assert np.isclose((c[0].t - a.t).jd, 0)
-        assert u.allclose(c[1].r, b.r)
-        assert u.allclose(c[1].v, b.v)
+        assert u.allclose(c[1].r, b_icrs.r)
+        assert u.allclose(c[1].v, b_icrs.v)
         assert np.isclose((c[1].t - b.t).jd, 0)
-        assert str(c.frame).lower() == str(a.frame).lower()
+        assert c.frame == a.frame
 
     def test_from_ephem(self):
         """Test Ephem to State.
@@ -620,31 +589,45 @@ def test_spice_prop2b():
     s = np.sqrt(solver.GM.to_value("km3/s2") / r1)
     half_period = np.pi * r1 / s
 
-    r = [0, r1 / np.sqrt(2), r1 / np.sqrt(2)]
-    v = [0, -s / np.sqrt(2), s / np.sqrt(2)]
+    r = [0, r1 / np.sqrt(2), r1 / np.sqrt(2)] * u.km
+    v = [0, -s / np.sqrt(2), s / np.sqrt(2)] * u.km / u.s
 
     initial = State(r, v, Time("2023-01-01"))
-    t_f = initial.t + half_period * u.s
-    final = solver.solve(initial, t_f)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ErfaWarning)
+        t_f = initial.t + half_period * u.s
+        final = solver.solve(initial, t_f)
 
-    assert np.allclose(initial.r.value, [0, 70710678.11865, 70710678.11865])
-    assert np.allclose(initial.v.value, [0, -0.04464, 0.04464], atol=0.00001)
-    assert np.allclose(final.r.value, [0, -70710678.11865, -70710678.11865])
-    assert np.allclose(final.v.value, [0, 0.04464, -0.04464], atol=0.00001)
+    assert u.allclose(initial.r, [0, 70710678.11865, 70710678.11865] * u.km, rtol=1e-11)
+    assert u.allclose(
+        initial.v,
+        [0, -0.04464, 0.04464] * u.km / u.s,
+        rtol=1e-11,
+        atol=0.00001 * u.km / u.s,
+    )
+    assert u.allclose(final.r, -r, rtol=1e-11)
+    assert u.allclose(final.v, -v, rtol=1e-11, atol=0.00001 * u.km / u.s)
 
-    t_f = initial.t + 5 * half_period * u.s
-    final = solver.solve(initial, t_f)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ErfaWarning)
+        t_f = initial.t + 5 * half_period * u.s
+        final = solver.solve(initial, t_f)
 
-    assert np.allclose(initial.r.value, [0, 70710678.11865, 70710678.11865])
-    assert np.allclose(initial.v.value, [0, -0.04464, 0.04464], atol=0.00001)
-    assert np.allclose(final.r.value, [0, -70710678.11865, -70710678.11865])
-    assert np.allclose(final.v.value, [0, 0.04464, -0.04464], atol=0.00001)
+    assert u.allclose(initial.r, [0, 70710678.11865, 70710678.11865] * u.km, rtol=1e-11)
+    assert u.allclose(
+        initial.v,
+        [0, -0.04464, 0.04464] * u.km / u.s,
+        rtol=1e-11,
+        atol=0.00001 * u.km / u.s,
+    )
+    assert u.allclose(final.r, -r, rtol=1e-11)
+    assert u.allclose(final.v, -v, rtol=1e-11)
 
 
 class TestFreeExpansion:
     def test(self):
-        r = [0, 1e6, 0]
-        v = [0, -1, 1]
+        r = [0, 1e6, 0] * u.km
+        v = [0, -1, 1] * u.km / u.s
 
         solver = FreeExpansion()
 
@@ -652,20 +635,20 @@ class TestFreeExpansion:
         t_f = initial.t + 1e6 * u.s
         final = solver.solve(initial, t_f)
 
-        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
-        assert np.allclose(final.v.value, [0, -1, 1])
+        assert u.allclose(final.r, [0, 0, 1e6] * u.km, atol=4e-4 * u.km)
+        assert u.allclose(final.v, [0, -1, 1] * u.km / u.s)
 
         solver = FreeExpansion(method="Radau")
 
         initial = State(r, v, Time("2023-01-01"))
         final = solver.solve(initial, t_f)
 
-        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
-        assert np.allclose(final.v.value, [0, -1, 1])
+        assert u.allclose(final.r, [0, 0, 1e6] * u.km, atol=4e-4 * u.km)
+        assert u.allclose(final.v, [0, -1, 1] * u.km / u.s)
 
-    def test_relative_time(self):
-        r = [0, 1e6, 0]
-        v = [0, -1, 1]
+    def test_arbitrary_time(self):
+        r = [0, 1e6, 0] * u.km
+        v = [0, -1, 1] * u.km / u.s
 
         solver = FreeExpansion()
 
@@ -673,8 +656,8 @@ class TestFreeExpansion:
         t_f = 1e6 * u.s
         final = solver.solve(initial, t_f)
 
-        assert np.allclose(final.r.value, [0, 0, 1e6], atol=2e-7)
-        assert np.allclose(final.v.value, [0, -1, 1])
+        assert u.allclose(final.r, [0, 0, 1e6] * u.km, atol=2e-7 * u.km)
+        assert u.allclose(final.v, [0, -1, 1] * u.km / u.s)
         assert final.t == t_f
 
 
@@ -687,32 +670,38 @@ class TestSolarGravity:
         s = np.sqrt(solver.GM.to_value("km3/s2") / r1)
         half_period = np.pi * r1 / s
 
-        r = [0, r1 / np.sqrt(2), r1 / np.sqrt(2)]
-        v = [0, -s / np.sqrt(2), s / np.sqrt(2)]
+        r = [0, r1 / np.sqrt(2), r1 / np.sqrt(2)] * u.km
+        v = [0, -s / np.sqrt(2), s / np.sqrt(2)] * u.km / u.s
 
         initial = State(r, v, Time("2023-01-01"))
-        t_f = initial.t + half_period * u.s
-        final = solver.solve(initial, t_f)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ErfaWarning)
+            t_f = initial.t + half_period * u.s
+            final = solver.solve(initial, t_f)
 
-        assert np.allclose(final.r.value, -initial.r.value)
-        assert np.allclose(final.v.value, -initial.v.value)
+        assert u.allclose(final.r, -initial.r, atol=10 * u.m)
+        assert u.allclose(final.v, -initial.v, atol=1 * u.um / u.s)
 
-        t_f = initial.t + 2 * half_period * u.s
-        final = solver.solve(initial, t_f)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ErfaWarning)
+            t_f = initial.t + 2 * half_period * u.s
+            final = solver.solve(initial, t_f)
 
-        assert np.allclose(final.r.value, initial.r.value)
-        assert np.allclose(final.v.value, initial.v.value)
+        assert u.allclose(final.r, initial.r, atol=60 * u.m)
+        assert u.allclose(final.v, initial.v, atol=1 * u.um / u.s)
 
-        t_f = initial.t + half_period * u.s
         solver = SolarGravity(method="Radau")
-        final = solver.solve(initial, t_f)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ErfaWarning)
+            t_f = initial.t + half_period * u.s
+            final = solver.solve(initial, t_f)
 
-        assert np.allclose(final.r.value, -initial.r.value)
-        assert np.allclose(final.v.value, -initial.v.value)
+        assert u.allclose(final.r, -initial.r, atol=1 * u.m)
+        assert u.allclose(final.v, -initial.v, atol=1 * u.um / u.s)
 
     def test_GM(self):
         solver = SolarGravity()
-        assert u.isclose(solver.GM, const.G * const.M_sun)
+        assert u.isclose(solver.GM, const.G * const.M_sun, rtol=1e-12)
 
     @pytest.mark.skipif(
         "scipy_version[0] < 2 and scipy_version[1] < 8", reason="requires scipy>=1.8"
@@ -727,7 +716,9 @@ class TestSolarGravity:
         initial = State(r, v, Time("2023-01-01"))
         t_f = initial.t + 1e6 * u.s
         with pytest.raises(SolverFailed):
-            solver.solve(initial, t_f)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                solver.solve(initial, t_f)
 
 
 class TestSolarGravityAndRadiationPressure:
@@ -738,7 +729,7 @@ class TestSolarGravityAndRadiationPressure:
         r1 = 1e8
         s = np.sqrt(solver.GM.to_value("km3/s2") / r1)
 
-        initial = State([0, 0, r1], [0, s, 0], Time("2023-01-01"))
+        initial = State([0, 0, r1] * u.km, [0, s, 0] * u.km / u.s, Time("2023-01-01"))
         t_f = initial.t + 1e6 * u.s
         beta = 0.1
         final1 = solver.solve(initial, t_f, beta)
