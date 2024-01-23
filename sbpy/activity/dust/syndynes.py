@@ -19,12 +19,8 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
 
-from .dynamics import (
-    FrameInputTypes,
-    State,
-    DynamicalModel,
-    SolarGravityAndRadiationPressure,
-)
+from ...dynamics.models import DynamicalModel, SolarGravityAndRadiationPressure
+from ...dynamics.state import State
 
 
 class Syndynes:

@@ -1,27 +1,27 @@
-Dust dynamics (`sbpy.activity.dust.dynamics`)
+Dust dynamics (`sbpy.dynamics`)
 =============================================
 
-`sbpy` has the capability to integrate test particle orbits, primarily intended to support the generation of :ref:`comet syndynes <sbpy/activity/dust:dust syndynes and synchrones>`.
+`sbpy` has the capability to describe dynamical states (position and velocity vectors), and to integrate test particle orbits.  These are primarily intended to support the generation of :ref:`comet syndynes <sbpy/activity/dust:dust syndynes and synchrones>`.
 
 
 Dynamical state 
 ---------------
 
-`~sbpy.activity.dust.dynamics.State` objects encapsulate the position and velocity of an object at a given time.  Create a `~sbpy.activity.dust.dynamics.State` for a comet at :math:`x=2` au, moving along the y-axis at a speed of 30 km/s:
+`~sbpy.dynamics.state.State` objects encapsulate the position and velocity of an object at a given time.  Create a ``State`` for a comet at :math:`x=2` au, moving along the y-axis at a speed of 30 km/s:
 
 
 .. doctest::
 
     >>> from astropy.time import Time
     >>> import astropy.units as u
-    >>> from sbpy.activity.dust import State
+    >>> from sbpy.dynamics import State
     >>> 
     >>> r = [2, 0, 0] * u.au
     >>> v = [0, 30, 0] * u.km / u.s
     >>> t = Time("2023-12-08")
     >>> comet = State(r, v, t)
 
-`~sbpy.activity.dust.dynamics.State` objects may also represent an array of objects:
+``State`` objects may also represent an array of objects:
 
 .. doctest::
 
@@ -41,7 +41,7 @@ The `r`, `v`, and `t` attributes hold the position, velocity, and time for the o
     >>> comets.r[0]
     <Quantity [2., 0., 0.] AU>
 
-Or, index the `State` object itself:
+Or, index the ``State`` object itself:
 
 .. doctest::
 
@@ -63,7 +63,7 @@ State objects may be initialized from ephemeris objects (`~sbpy.data.Ephem`), pr
     ...                           closest_apparition=True)  # doctest: +REMOTE_DATA
     >>> tempel1 = State.from_ephem(eph)                     # doctest: +REMOTE_DATA
 
-And ``State`` may be converted back to an ``Ephem`` object:
+And ``State`` may be converted to an ``Ephem`` object:
 
 .. doctest-requires:: astroquery
 
@@ -95,7 +95,7 @@ And back to a ``SkyCoord`` object:
 Reference frames
 ^^^^^^^^^^^^^^^^
 
-Coordinate reference frames can be specified with the ``frame`` keyword argument.  Most ``astropy`` reference frames are supported (see `astropy's Built-in Frame Classes <https://docs.astropy.org/en/stable/coordinates/index.html#module-astropy.coordinates.builtin_frames>`):
+Coordinate reference frames can be specified with the ``frame`` keyword argument during initialization.  Most of `astropy` reference frames are supported (see `astropy's Built-in Frame Classes <https://docs.astropy.org/en/stable/coordinates/index.html#module-astropy.coordinates.builtin_frames>`_):
 
 .. note::
     When working with heliocentric ecliptic coordinates from JPL Horizons or NAIF SPICE, you may want to use the `~astropy.coordinates.HeliocentricEclipticIAU76` reference frame.
@@ -115,7 +115,7 @@ Coordinate reference frames can be specified with the ``frame`` keyword argument
       t
         2023-12-08 00:00:00.000>
 
-Use :func:`~sbpy.activity.dust.dynamics.State.transform_to` to transform between reference frames:
+Use :func:`~sbpy.dynamics.state.State.transform_to` to transform between reference frames:
 
 .. doctest::
 
@@ -164,17 +164,17 @@ Or, get the sky coordinates of the comet as seen from the Earth:
      (pm_lon, pm_lat, radial_velocity) in (mas / yr, mas / yr, km / s)
         (6.52671946e+08, 0., -30.0000001)>
 
-The result, a `~astropy.coordinates.SkyCoord` object, will be expressed in the reference frame of the observer.
+The result, a `~astropy.coordinates.SkyCoord` object, is expressed in the reference frame of the observer.
 
 
 Dynamical integrators
 ---------------------
 
-A state object may be propagated to a new time using a dynamical integrator.  Three integrators are defined.  Use `~sbpy.activity.dust.dynamics.FreeExpansion` for motion in free space, `~sbpy.activity.dust.dynamics.SolarGravity` for orbits around the Sun, and `~sbpy.activity.dust.dynamics.SolarGravityAndRadiationPressure`  for orbits around the Sun considering radiation pressure.
+A state object may be propagated to a new time using a dynamical integrator.  Three integrators are defined.  Use `~sbpy.dynamics.FreeExpansion` for motion in free space, `~sbpy.dynamics.SolarGravity` for orbits around the Sun, and `~sbpy.dynamics.SolarGravityAndRadiationPressure`  for orbits around the Sun considering radiation pressure.
 
 .. doctest-requires:: scipy
 
-    >>> from sbpy.activity.dust import SolarGravity
+    >>> from sbpy.dynamics import SolarGravity
     >>> state = State([1, 0, 0] * u.au, [0, 30, 0] * u.km / u.s, 0 * u.s)
     >>> integrator = SolarGravity()
     >>> t_final = 1 * u.year
@@ -187,5 +187,11 @@ A state object may be propagated to a new time using a dynamical integrator.  Th
       t
         1.0 yr>
 
+Other integrators may be defined.  Use the above classes as templates or as base classes.  For example, to simulate orbits around the Earth, update the ``_GM`` private attribute from ``SolarGravity``:
 
-.. automodapi:: sbpy.activity.dust.dynamics
+.. doctest-requires:: scipy
+
+  >>> class EarthGravity(SolarGravity):
+  ...     _GM = 3.9860043543609598e5  # km3/s2
+
+.. automodapi:: sbpy.dynamics

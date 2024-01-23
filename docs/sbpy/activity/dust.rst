@@ -211,7 +211,7 @@ Syndynes are lines in space connecting particles that are experiencing the same 
 Syndynes
 ^^^^^^^^
 
-Syndynes are generated with the `~sbpy.activity.dust.syndynes.Syndynes` class.  The class requires a `~sbpy.activity.dust.dynamics.State` object, :math:`\beta` values, and particle ages from which to generate the syndynes.
+Syndynes are generated with the `~sbpy.activity.dust.syndynes.Syndynes` class.  The class requires a `~sbpy.dynamics.state.State` object, :math:`\beta` values, and particle ages from which to generate the syndynes.
 
 First, define the source of the syndynes, a comet at 2 au from the Sun:
 
@@ -219,7 +219,7 @@ First, define the source of the syndynes, a comet at 2 au from the Sun:
 
    >>> from astropy.time import Time
    >>> import astropy.units as u
-   >>> from sbpy.activity.dust import State
+   >>> from sbpy.dynamics import State
    >>> 
    >>> r = [2, 0, 0] * u.au
    >>> v = [0, 30, 0] * u.km / u.s
@@ -293,7 +293,7 @@ Synchrones are also simulated with the `~sbpy.activity.dust.syndynes.Syndynes` c
 Projecting onto the sky
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Syndynes and synchrones may be projected onto the sky as seen by a telescope.  This requires an observer.  For precision work, `~sbpy.activity.dust.syndynes.Syndynes` source object should be in a heliocentric reference frame.  Typically, the observer will observe in an equatorial reference frame.  Here, we use the same J2000 heliocentric ecliptic coordinate frame that <JPL Horizons `https://ssd.jpl.nasa.gov/horizons/manual.html#frames`>_ and the <NAIF SPICE toolkit `https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html#Frames%20Supported%20in%20SPICE`>_ use, `~astropy.coordinates.HeliocentricEclipticIAU76`, and observe in the `~astropy.coordinates.ICRS` reference frame:
+Syndynes and synchrones may be projected onto the sky as seen by a telescope.  This requires an observer.  For precision work, the ``Syndynes`` source object's ``State`` should be defined in a heliocentric reference frame.  Typically, the observer will observe in an equatorial reference frame, but your needs may vary.  Here, we generate syndynes in the same J2000 heliocentric ecliptic coordinate frame that <JPL Horizons `https://ssd.jpl.nasa.gov/horizons/manual.html#frames`>_ and the <NAIF SPICE toolkit `https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html#Frames%20Supported%20in%20SPICE`>_ use, `~astropy.coordinates.HeliocentricEclipticIAU76`, and observe the results in the `~astropy.coordinates.ICRS` reference frame:
 
 .. doctest-requires:: scipy
 
@@ -326,7 +326,7 @@ With the observer and coordinate frames defined, the syndyne and synchrone metho
 Source object orbit
 ^^^^^^^^^^^^^^^^^^^
 
-Calculating the positions of the projected orbit of the source object may be helpful for interpreting an observation or a set of syndynes.  They are calculated with the :meth:`~sbpy.activity.dust.synydnes.Syndynes.get_orbit` method:
+Calculating the positions of the projected orbit of the source object may be helpful for interpreting an observation or a set of syndynes.  They are calculated with the :func:`~sbpy.activity.dust.synydnes.Syndynes.get_orbit` method:
 
 .. doctest-requires:: scipy
 
@@ -334,10 +334,10 @@ Calculating the positions of the projected orbit of the source object may be hel
    >>> orbit, coords = syn.get_orbit(dt)
 
 
-Other dynamical models
-^^^^^^^^^^^^^^^^^^^^^^
+Using other dynamical models
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`sbpy`'s built-in models solve the equations of motion for dust grains given two-body dynamics.  Users may provide their own models in order to, e.g., improve code performance, or add planetary perturbations.  Use the `~sbpy.activity.dust.dynamics.SolarGravityAndRadiationPressure` class as a template.
+`sbpy`'s built-in models solve the equations of motion for dust grains given two-body dynamics.  Users may provide their own models in order to, e.g., improve code performance, add planetary perturbations, model grain fragmentation, etc..  Use the `~sbpy.activity.dust.dynamics.SolarGravityAndRadiationPressure` class as a template.
 
 In this example, we compute the syndynes of a comet orbiting β Pic (1.8 solar masses) by sub-classing `~sbpy.activity.dust.dynamics.SolarGravityAndRadiationPressure` and updating :math:`GM`, the mass of the star times the gravitational constant:
 
@@ -405,7 +405,8 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
 
    import astropy.units as u
    from astropy.time import Time
-   from sbpy.activity.dust import State, Syndynes
+   from sbpy.dynamics import State
+   from sbpy.activity.dust import Syndynes
 
    r = [2, 0, 0] * u.au
    v = [0, 30, 0] * u.km / u.s

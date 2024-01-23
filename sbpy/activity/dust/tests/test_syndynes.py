@@ -6,7 +6,7 @@ import astropy.units as u
 from astropy.coordinates.errors import ConvertError
 from astropy.time import Time
 from ..syndynes import Syndynes, State
-from ..dynamics import SolarGravity, SolarGravityAndRadiationPressure
+from ....dynamics.models import SolarGravity, SolarGravityAndRadiationPressure
 
 
 pytest.importorskip("scipy")

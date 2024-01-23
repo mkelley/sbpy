@@ -1,17 +1,16 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
-sbpy activity.dust.dynamics
-===========================
+sbpy.dynamics.state
+===================
 
-Dust dynamical models.
+Dynamical state.
+
 
 """
 
 __all__ = [
+    "ArbitraryFrame",
     "State",
-    "FreeExpansion",
-    "SolarGravity",
-    "SolarGravityAndRadiationPressure",
 ]
 
 import abc
@@ -30,11 +29,11 @@ from astropy.coordinates import frame_transform_graph, SkyCoord, BaseCoordinateF
 import astropy.coordinates.representation as repr
 import astropy.constants as const
 
-from ... import data as sbd
-from ...data.ephem import Ephem
-from ...exceptions import SbpyException
-from ...utils.decorators import requires
-from ... import time  # noqa: F401
+from .. import data as sbd
+from ..data.ephem import Ephem
+from ..exceptions import SbpyException
+from ..utils.decorators import requires
+from .. import time  # noqa: F401
 
 
 class SolverFailed(SbpyException):

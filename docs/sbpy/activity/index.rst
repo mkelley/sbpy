@@ -9,7 +9,6 @@ Activity Module (`sbpy.activity`)
 
   dust
   gas
-  dynamics
 
 
 Apertures
