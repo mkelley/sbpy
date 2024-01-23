@@ -207,10 +207,11 @@ Dust syndynes and synchrones
 
 Syndynes are lines in space connecting particles that are experiencing the same forces.  A syndyne is parameterized by :math:`\beta`, the ratio of the force from solar radiation to the force from solar gravity, :math:`F_r / F_g`, and age (or time of release).  Thus, all particles in a syndyne have a constant :math:`\beta` but variable age.  Similarly, synchrones are lines of constant particle age, but variable :math:`\beta`.
 
+
 Syndynes
 ^^^^^^^^
 
-Syndynes are generated with the `~sbpy.activity.dust.syndynes.Syndynes` class.  The class requires a `~sbpy.activity.dust.dynamics.State` object, representing the source of the syndynes, a list of :math:`\beta` values and particle ages from which to generate the syndynes.
+Syndynes are generated with the `~sbpy.activity.dust.syndynes.Syndynes` class.  The class requires a `~sbpy.activity.dust.dynamics.State` object, :math:`\beta` values, and particle ages from which to generate the syndynes.
 
 First, define the source of the syndynes, a comet at 2 au from the Sun:
 
@@ -253,7 +254,7 @@ To compute the syndynes, use the :meth:`~sbpy.activity.dust.syndynes.Syndynes.so
    >>> print(len(syn.particles))
    100
 
-Inspect the results using :meth:`~sbpy.activity.dust.syndynes.Syndynes.syndynes`, which returns an iterator containing each syndyne's :math:`\beta`-value and particle states.  For example, we can compute the maximum linear distance from the comet to the syndyne particles:
+Get the results from :meth:`~sbpy.activity.dust.syndynes.Syndynes.syndynes`, which returns an iterator containing each syndyne's :math:`\beta`-value and particle states.  For example, we can compute the maximum linear distance from the comet to the syndyne particles:
 
 .. doctest-requires:: scipy
 
@@ -265,7 +266,7 @@ Inspect the results using :meth:`~sbpy.activity.dust.syndynes.Syndynes.syndynes`
    0.003 AU
    0.000 AU
 
-Individual syndynes may be produced with the :meth:`~sbpy.activity.dust.syndynes.Syndynes.get_syndyne` method and a syndyne index.  The index for the syndyne matches the index of the ``betas`` array.  To get the :math:`\beta=0.1` syndyne from our example:
+Individual syndynes may be retrieved with the :meth:`~sbpy.activity.dust.syndynes.Syndynes.get_syndyne` method and a syndyne index.  The index for the syndyne matches the index of the ``betas`` array.  To get the :math:`\beta=0.1` syndyne from our example:
 
 .. doctest-requires:: scipy
 
@@ -275,10 +276,11 @@ Individual syndynes may be produced with the :meth:`~sbpy.activity.dust.syndynes
    >>> print(beta)
    0.1
 
+
 Synchrones
 ^^^^^^^^^^
 
-Synchrones are also simulated with the `~sbpy.activity.dust.syndynes.Syndynes` class, but instead generated with the :meth:`~sbpy.activity.dust.syndynes.Syndynes.get_synchrone` and :meth:`~sbpy.activity.dust.syndynes.Syndynes.synchrones` methods.
+Synchrones are also simulated with the `~sbpy.activity.dust.syndynes.Syndynes` class, but instead retrieved with the :meth:`~sbpy.activity.dust.syndynes.Syndynes.get_synchrone` and :meth:`~sbpy.activity.dust.syndynes.Syndynes.synchrones` methods.
 
 .. doctest-requires:: scipy
 
@@ -291,31 +293,35 @@ Synchrones are also simulated with the `~sbpy.activity.dust.syndynes.Syndynes` c
 Projecting onto the sky
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Syndynes and synchrones may be projected onto the sky as seen by a telescope.  This requires an observer and sky coordinate frames.  `sbpy` uses `astropy`'s reference frames, which may be specified as a string or an instance of a reference frame object.  For precision work, the states provided to the `~sbpy.activity.dust.syndynes.Syndynes` object should be in a heliocentric coordinate frame.  Here, we use a J2000 heliocentric ecliptic coordinate frame that <JPL Horizons `https://ssd.jpl.nasa.gov/horizons/manual.html#frames`>_ and the <NAIF SPICE toolkit `https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html#Frames%20Supported%20in%20SPICE`>_: `"heliocentriceclipticiau76"`:
+Syndynes and synchrones may be projected onto the sky as seen by a telescope.  This requires an observer.  For precision work, `~sbpy.activity.dust.syndynes.Syndynes` source object should be in a heliocentric reference frame.  Typically, the observer will observe in an equatorial reference frame.  Here, we use the same J2000 heliocentric ecliptic coordinate frame that <JPL Horizons `https://ssd.jpl.nasa.gov/horizons/manual.html#frames`>_ and the <NAIF SPICE toolkit `https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html#Frames%20Supported%20in%20SPICE`>_ use, `~astropy.coordinates.HeliocentricEclipticIAU76`, and observe in the `~astropy.coordinates.ICRS` reference frame:
 
 .. doctest-requires:: scipy
 
-   >>> comet.frame = "heliocentriceclipticiau76"
+   >>> r = [2, 0, 0] * u.au
+   >>> v = [0, 30, 0] * u.km / u.s
+   >>> t = Time("2023-12-08")
+   >>> comet = State(r, v, t, frame="heliocentriceclipticiau76")
    >>> observer = State(
    ...     r=[0, 2, 2] * u.au,
    ...     v=[0, 0, 0] * u.km / u.s,
    ...     t=comet.t,
-   ...     frame="heliocentriceclipticiau76"
+   ...     frame="icrs",
    ... )
    >>> syn = Syndynes(comet, betas, ages, observer=observer)
    >>> syn.solve()
 
-With the observer and coordinate frames defined, the syndyne and synchrone methods will return `astropy.coordinates.SkyCoord` objects that represent the sky positions of the test particles.  Here, we request the coordinate object is returned in an ICRS-based reference frame and print a sample of the coordinates:
+With the observer and coordinate frames defined, the syndyne and synchrone methods will return `astropy.coordinates.SkyCoord` objects that represent the sky positions of the test particles.  Here, we print a sample of the coordinates:
 
 .. doctest-requires:: scipy
 
-   >>> beta, states, coords = syn.get_syndyne(0, frame="icrs")
+   >>> beta, states, coords = syn.get_syndyne(0)
    >>> print("\n".join(coords[::5].to_string("hmsdms", precision=0)))
-   22h10m09s -49d24m30s
-   22h10m44s -49d13m51s
-   22h11m44s -48d43m46s
-   22h12m11s -47d59m54s
-   22h11m27s -47d09m25s
+   20h59m23s -35d18m48s
+   21h00m12s -35d12m20s
+   21h02m03s -34d53m54s
+   21h04m03s -34d26m49s
+   21h05m29s -33d55m36s
+
 
 Source object orbit
 ^^^^^^^^^^^^^^^^^^^
@@ -325,7 +331,8 @@ Calculating the positions of the projected orbit of the source object may be hel
 .. doctest-requires:: scipy
 
    >>> dt = np.linspace(-2, 2) * u.d
-   >>> orbit, coords = syn.get_orbit(dt, frame="icrs")
+   >>> orbit, coords = syn.get_orbit(dt)
+
 
 Other dynamical models
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -356,7 +363,7 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
    >>> from itertools import islice
    >>> import matplotlib.pyplot as plt
    >>> 
-   >>> coords0 = observer.observe(comet, frame="icrs")
+   >>> coords0 = observer.observe(comet)
    >>> def plot(ax, coords, **kwargs):
    ...     dRA = coords.ra - coords0.ra
    ...     dDec = coords.dec - coords0.dec
@@ -364,19 +371,19 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
    >>> 
    >>> fig, ax = plt.subplots()
    >>> 
-   >>> for beta, states, coords in syn.syndynes("icrs"):
+   >>> for beta, states, coords in syn.syndynes():
    ...     # don't draw the beta = 0 syndyne
    ...     if beta == 0:
    ...         continue
    ...     plot(ax, coords, label=f"$\\beta={beta:.2g}$")
    >>> 
    >>> # use islice to plot every 5th synchrone
-   >>> for age, states, coords in islice(syn.synchrones("icrs"), 4, None, 5):
+   >>> for age, states, coords in islice(syn.synchrones(), 4, None, 5):
    ...     plot(ax, coords, ls="--", label=f"$\\Delta t={age.to(u.d):.2g}$")
    >>> 
    >>> # and plot the orbit
    >>> dt = np.linspace(-2, 2) * u.d
-   >>> states, coords = syn.get_orbit(dt, frame="icrs")
+   >>> states, coords = syn.get_orbit(dt)
    >>> plot(ax, coords, color="k", ls=":", label="Orbit")
    >>>
    >>> ax.invert_xaxis()
@@ -412,12 +419,12 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
        r=[0, 2, 2] * u.au,
        v=[0, 0, 0] * u.km / u.s,
        t=comet.t,
-       frame=frame,
+       frame="icrs",
    )
    syn = Syndynes(comet, betas, ages, observer=observer)
    syn.solve()
 
-   coords0 = observer.observe(comet, frame="icrs")
+   coords0 = observer.observe(comet)
    def plot(ax, coords, **kwargs):
        dRA = coords.ra - coords0.ra
        dDec = coords.dec - coords0.dec
@@ -425,19 +432,19 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
    
    fig, ax = plt.subplots()
    
-   for beta, states, coords in syn.syndynes("icrs"):
+   for beta, states, coords in syn.syndynes():
        # don't draw the beta = 0 syndyne
        if beta == 0:
            continue
        plot(ax, coords, label=f"$\\beta={beta:.2g}$")
    
    # use islice to plot every 5th synchrone
-   for age, states, coords in islice(syn.synchrones("icrs"), 4, None, 5):
+   for age, states, coords in islice(syn.synchrones(), 4, None, 5):
        plot(ax, coords, ls="--", label=f"$\Delta t={age.to(u.d):.2g}$")
    
    # and plot the orbit
    dt = np.linspace(-2, 2) * u.d
-   states, coords = syn.get_orbit(dt, frame="icrs")
+   states, coords = syn.get_orbit(dt)
    plot(ax, coords, color="k", ls=":", label="Orbit")
 
    ax.invert_xaxis()

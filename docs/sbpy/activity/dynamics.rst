@@ -39,14 +39,14 @@ The `r`, `v`, and `t` attributes hold the position, velocity, and time for the o
     >>> comets.r.shape
     (2, 3)
     >>> comets.r[0]
-    <Quantity [2.99195741e+08, 0.00000000e+00, 0.00000000e+00] km>
+    <Quantity [2., 0., 0.] AU>
 
 Or, index the `State` object itself:
 
 .. doctest::
 
     >>> comets[0].r  # equivalent to comets.r[0]
-    <Quantity [2.99195741e+08, 0.00000000e+00, 0.00000000e+00] km>
+    <Quantity [2., 0., 0.] AU>
 
 
 Convert to/from ``Ephem`` and ``SkyCoord``
@@ -86,8 +86,8 @@ And back to a ``SkyCoord`` object:
 .. doctest::
 
     >>> state.to_skycoord()
-    <SkyCoord (ICRS): (x, y, z) in km
-        (1.43782125e+08, 39908095.19296389, 10656800.66639306)
+    <SkyCoord (ICRS): (x, y, z) in AU
+        (0.96112414, 0.26676914, 0.07123631)
      (v_x, v_y, v_z) in km / s
         (9.16701924, 23.45244422, -0.94097856)>
 
@@ -107,13 +107,13 @@ Coordinate reference frames can be specified with the ``frame`` keyword argument
     >>> t = Time("2023-12-08")
     >>> state = State(r, v, t, frame="heliocentriceclipticiau76")
     >>> state
-    <State (<HeliocentricEclipticIAU76 Frame (obstime=J2000.000)>):
-     r
-        [2.99195741e+08 0.00000000e+00 0.00000000e+00] km
-     v
-        [ 0. 30.  0.] km / s
-     t
-        755265669.183221>
+    <State (<HeliocentricEclipticIAU76 Frame (obstime=2023-12-08 00:00:00.000)>):
+      r
+        [2. 0. 0.] AU
+      v
+         [ 0. 30.  0.] km / s
+      t
+        2023-12-08 00:00:00.000>
 
 Use :func:`~sbpy.activity.dust.dynamics.State.transform_to` to transform between reference frames:
 
@@ -121,13 +121,13 @@ Use :func:`~sbpy.activity.dust.dynamics.State.transform_to` to transform between
 
     >>> new_state = state.transform_to("icrs")
     >>> new_state
-    <State (<ICRS Frame>):
-     r
-        [ 2.97986677e+08 -3.87811613e+05 -1.33685640e+05] km
-     v
-        [8.11760173e-03  2.75129298e+01  1.19282350e+01] km / s
-     t
-        755265669.183221>
+     <State (<ICRS Frame>):
+      r
+        [ 1.99191790e+00 -2.59236051e-03 -8.93633307e-04] AU
+      v
+        [8.11760173e-03 2.75129298e+01 1.19282350e+01] km / s
+      t
+        2023-12-08 00:00:00.000>
 
 
 State lengths, subtraction, and observations
@@ -138,7 +138,7 @@ A few mathematical operations are possible.  Get the magnitude of the heliocentr
 .. doctest::
 
     >>> print(abs(comet))
-    (<Quantity 2.99195741e+08 km>, <Quantity 30. km / s>)
+    (<Quantity 2. AU>, <Quantity 30. km / s>)
 
 Get the Earth-comet state vector by subtraction:
 
@@ -146,21 +146,25 @@ Get the Earth-comet state vector by subtraction:
 
     >>> earth = State([0, 1, 0] * u.km, [30, 0, 0] * u.km / u.s, comet.t)
     >>> print(comet - earth)
-    <State (None):
-     r
-        [ 2.99195741e+08 -1.00000000e+00  0.00000000e+00] km
-     v
-        [-30.  30.   0.] km / s
-     t
-        755265669.183221>
+    <State (<ArbitraryFrame Frame>):
+      r
+        [ 2.00000000e+00 -6.68458712e-09  0.00000000e+00] AU
+      v
+         [-30.  30.   0.] km / s
+      t
+        2023-12-08 00:00:00.000>
 
-Or, get the sky coordinates of the comet as seen from the Earth.  Because this creates a `~astropy.coordinates.SkyCoord` object, a reference frame is required:
+Or, get the sky coordinates of the comet as seen from the Earth:
 
 .. doctest::
 
-    >>> comet.frame = "icrs"
-    >>> earth.frame = "icrs"
     >>> earth.observe(comet)
+    <SkyCoord (ArbitraryFrame): (lon, lat, distance) in (deg, deg, AU)
+        (359.99999981, 0., 2.)
+     (pm_lon, pm_lat, radial_velocity) in (mas / yr, mas / yr, km / s)
+        (6.52671946e+08, 0., -30.0000001)>
+
+The result, a `~astropy.coordinates.SkyCoord` object, will be expressed in the reference frame of the observer.
 
 
 Dynamical integrators
@@ -175,13 +179,13 @@ A state object may be propagated to a new time using a dynamical integrator.  Th
     >>> integrator = SolarGravity()
     >>> t_final = 1 * u.year
     >>> integrator.solve(state, t_final)
-    <State (None):
-     r
-        [ 1.4814690e+08 -2.0935988e+07  0.0000000e+00] km
-     v
-        [ 4.13782154 29.70907118  0.        ] km / s
-     t
-        31557600.0 s>
+    <State (<ArbitraryFrame Frame>):
+      r
+        [ 1.48146925e+08 -2.09358771e+07  0.00000000e+00] km
+      v
+        [ 4.137801   29.70907176  0.        ] km / s
+      t
+        1.0 yr>
 
 
 .. automodapi:: sbpy.activity.dust.dynamics
