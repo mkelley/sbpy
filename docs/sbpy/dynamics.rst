@@ -1,5 +1,5 @@
-Dust dynamics (`sbpy.dynamics`)
-=============================================
+Dynamics (`sbpy.dynamics`)
+==========================
 
 `sbpy` has the capability to describe dynamical states (position and velocity vectors), and to integrate test particle orbits.  These are primarily intended to support the generation of :ref:`comet syndynes <sbpy/activity/dust:dust syndynes and synchrones>`.
 
