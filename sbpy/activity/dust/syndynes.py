@@ -8,7 +8,7 @@ Generate cometary dust syndynes and synchrones.
 """
 
 __all__ = [
-    "Syndynes",
+    "Syn",
 ]
 
 import time
@@ -23,7 +23,7 @@ from ...dynamics.models import DynamicalModel, SolarGravityAndRadiationPressure
 from ...dynamics.state import State
 
 
-class Syndynes:
+class Syn:
     """Syndyne / synchrone generator for cometary dust.
 
 
@@ -85,7 +85,7 @@ class Syndynes:
         self.initialize_states()
 
     def __repr__(self) -> str:
-        return f"<Syndynes:\n betas\n    {self.betas}\n ages\n    {self.ages}>"
+        return f"<Syn:\n betas\n    {self.betas}\n ages\n    {self.ages}>"
 
     def initialize_states(self) -> None:
         """Generate the initial particle states.
@@ -197,7 +197,7 @@ class Syndynes:
         coords: SkyCoord = self.observer.observe(syn)
         return self.ages[i], syn, coords
 
-    def syndynes(self) -> Tuple[float, State, SkyCoord]:
+    def dynes(self) -> Tuple[float, State, SkyCoord]:
         """Iterator for each syndyne from `get_syndyne`.
 
 
@@ -209,7 +209,7 @@ class Syndynes:
         for i in range(len(self.betas)):
             yield self.get_syndyne(i)
 
-    def synchrones(self) -> Tuple[u.Quantity, State, SkyCoord]:
+    def chrones(self) -> Tuple[u.Quantity, State, SkyCoord]:
         """Iterator for each synchrone from `get_synchrone`.
 
 

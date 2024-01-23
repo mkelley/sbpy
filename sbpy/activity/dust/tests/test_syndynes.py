@@ -5,7 +5,7 @@ import numpy as np
 import astropy.units as u
 from astropy.coordinates.errors import ConvertError
 from astropy.time import Time
-from ..syndynes import Syndynes, State
+from ..syndynes import Syn, State
 from ....dynamics.models import SolarGravity, SolarGravityAndRadiationPressure
 
 
@@ -25,7 +25,7 @@ def example_syndynes():
     observer = State(
         [0, 1, 0] * u.au, [30, 0, 0] * u.km / u.s, comet.t, frame=comet.frame
     )
-    syn = Syndynes(comet, betas, ages, observer=observer)
+    syn = Syn(comet, betas, ages, observer=observer)
     syn.solve()
     return comet, betas, ages, syn, observer
 
@@ -37,18 +37,18 @@ class TestSyndynes:
         ages = [1, 10, 100] * u.d
 
         # no observer
-        syn = Syndynes(comet, betas, ages)
+        syn = Syn(comet, betas, ages)
         assert syn.observer is None
 
         # observer and comet are both in the "Arbitrary" frame
         observer = State([0, 1, 0] * u.au, [30, 0, 0] * u.km / u.s, comet.t)
-        syn = Syndynes(comet, betas, ages, observer=observer)
+        syn = Syn(comet, betas, ages, observer=observer)
         syn.solve()
         syn.get_syndyne(0)
 
         # cannot convert comet frame to observer frame:
         comet = State(comet.r, comet.v, comet.t, frame="heliocentriceclipticiau76")
-        syn = Syndynes(comet, betas, ages, observer=observer)
+        syn = Syn(comet, betas, ages, observer=observer)
         syn.solve()
         with pytest.raises(
             ConvertError,
@@ -58,13 +58,13 @@ class TestSyndynes:
 
         # fix observer frame
         observer = State(observer.r, observer.v, observer.t, comet.frame)
-        syn = Syndynes(comet, betas, ages, observer=observer)
+        syn = Syn(comet, betas, ages, observer=observer)
         syn.solve()
         syn.get_syndyne(0)
 
         # only one length 1 states allowed
         with pytest.raises(ValueError):
-            Syndynes(State.from_states([comet, comet]), betas, ages)
+            Syn(State.from_states([comet, comet]), betas, ages)
 
     def test_repr(self, example_syndynes):
         comet, betas, ages, syn, observer = example_syndynes
