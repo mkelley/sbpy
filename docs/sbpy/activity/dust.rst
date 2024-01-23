@@ -28,7 +28,7 @@ where :math:`T_c` is the spectral temperature of the continuum (Kelley et al. 20
 *Afρ* and *εfρ* are quantities
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`~sbpy.activity.dust.core.Afrho` and `~sbpy.activity.dust.core.Efrho` are subclasses of `astropy`'s `~astropy.units.Quantity` and carry units of length.
+``Afrho`` and ``Efrho`` are subclasses of `astropy`'s `~astropy.units.Quantity` and carry units of length.
 
    >>> import numpy as np
    >>> import astropy.units as u
@@ -80,13 +80,13 @@ The solar flux density at 1 au is also needed.  We use 1868 W/(m2 μm).
 
 Which is within a few percent of 6160 cm computed by A'Hearn et al.. The difference is likely due to the assumed solar flux density in the bandpass.
 
-The `~sbpy.activity.dust.core.Afrho` class may be converted to a flux density, and the original value is recovered.
+The ``Afrho`` class may be converted to a flux density, and the original value is recovered.
 
    >>> f = afrho.to_fluxd('λ5240', aper, eph).to('erg/(s cm2 AA)')
    >>> print(np.log10(f.value))    # doctest: +FLOAT_CMP
    -13.99
 
-`~sbpy.activity.dust.core.Afrho` works seamlessly with `sbpy`'s spectral calibration framework (:ref:`sbpy-calib`) when the `astropy` affiliated package `synphot` is installed.  The solar flux density (via `~sbpy.calib.solar_fluxd`) is not required, but instead the spectral wavelengths or the system transmission of the instrument and filter:
+``Afrho`` works seamlessly with `sbpy`'s spectral calibration framework (:ref:`sbpy-calib`) when the `astropy` affiliated package `synphot` is installed.  The solar flux density (via `~sbpy.calib.solar_fluxd`) is not required, but instead the spectral wavelengths or the system transmission of the instrument and filter:
 
 .. doctest-requires:: synphot; astropy>=5.3
 
@@ -105,7 +105,7 @@ The `~sbpy.activity.dust.core.Afrho` class may be converted to a flux density, a
 Thermal emission with *εfρ*
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
    
-The `~sbpy.activity.dust.core.Efrho` class has the same functionality as the `~sbpy.activity.dust.core.Afrho` class.  The most important difference is that *εfρ* is calculated using a Planck function and temperature.  `sbpy` follows common practice and parameterizes the temperature as a constant scale factor of :math:`T_{BB} = 278\,r_h^{1/2}`\  K, the equilibrium temperature of a large blackbody sphere at a distance :math:`r_h` from the Sun.
+The ``Efrho`` class has the same functionality as the ``Afrho`` class.  The most important difference is that *εfρ* is calculated using a Planck function and temperature.  `sbpy` follows common practice and parameterizes the temperature as a constant scale factor of :math:`T_{BB} = 278\,r_h^{1/2}`\  K, the equilibrium temperature of a large blackbody sphere at a distance :math:`r_h` from the Sun.
 
 Reproduce the *εfρ* of 246P/NEAT from Kelley et al. (2013).
 
@@ -127,7 +127,7 @@ Compare to 397.0 cm and 424.6 cm listed in Kelley et al. (2013).
 To/from magnitudes
 ^^^^^^^^^^^^^^^^^^
 
-`~sbpy.activity.dust.core.Afrho` and `~sbpy.activity.dust.core.Efrho` also work with `astropy`'s magnitude units.  If the conversion between Vega-based magnitudes is required, then `sbpy`'s calibration framework (:ref:`sbpy-calib`) will be used.
+``Afrho`` and ``Efrho`` also work with `astropy`'s magnitude units.  If the conversion between Vega-based magnitudes is required, then `sbpy`'s calibration framework (:ref:`sbpy-calib`) will be used.
 
 Estimate the *Afρ* of comet C/2012 S1 (ISON) based on Pan-STARRS 1 photometry in the *r* band (Meech et al. 2013)
 
@@ -148,7 +148,7 @@ Estimate the *Afρ* of comet C/2012 S1 (ISON) based on Pan-STARRS 1 photometry i
 Phase angles and functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Phase angle was not used in the previous section.  In the *Afρ* formalism, "albedo" includes the scattering phase function, and is more precisely written *A(θ)*, where *θ* is the phase angle.  The default behavior for `~sbpy.activity.dust.core.Afrho` is to compute *A(θ)fρ* as opposed to *A(0°)fρ*.  Returning to the A'Hearn et al. data, we scale *Afρ* to 0° from 3.3° phase using the :func:`~sbpy.activity.Afrho.to_phase` method:
+Phase angle was not used in the previous section.  In the *Afρ* formalism, "albedo" includes the scattering phase function, and is more precisely written *A(θ)*, where *θ* is the phase angle.  The default behavior for ``Afrho`` is to compute *A(θ)fρ* as opposed to *A(0°)fρ*.  Returning to the A'Hearn et al. data, we scale *Afρ* to 0° from 3.3° phase using the :func:`~sbpy.activity.dust.Afrho.to_phase` method:
 
 .. doctest-requires:: scipy
 
@@ -164,7 +164,7 @@ The default phase function is the Halley-Marcus composite phase function (:func:
    >>> print(afrho.to_phase(0 * u.deg, 3.3 * u.deg, Phi=Phi))    # doctest: +FLOAT_CMP
    6809.419810008357 cm
 
-To correct an observed flux density for the phase function, use the ``phasecor`` option of :func:`~sbpy.activity.Afrho.to_fluxd` and :func:`~sbpy.activity.Afrho.from_fluxd` methods:
+To correct an observed flux density for the phase function, use the ``phasecor`` option of :func:`~sbpy.activity.dust.Afrho.to_fluxd` and :func:`~sbpy.activity.dust.Afrho.from_fluxd` methods:
 
 .. doctest-requires:: scipy
 
@@ -337,14 +337,14 @@ Calculating the positions of the projected orbit of the source object may be hel
 Using other dynamical models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`sbpy`'s built-in models solve the equations of motion for dust grains given two-body dynamics.  Users may provide their own models in order to, e.g., improve code performance, add planetary perturbations, model grain fragmentation, etc..  Use the `~sbpy.activity.dust.dynamics.SolarGravityAndRadiationPressure` class as a template.
+`sbpy`'s built-in models solve the equations of motion for dust grains given two-body dynamics.  Users may provide their own models in order to, e.g., improve code performance, add planetary perturbations, model grain fragmentation, etc..  Use the `~sbpy.dynamics.SolarGravityAndRadiationPressure` class as a template.
 
-In this example, we compute the syndynes of a comet orbiting β Pic (1.8 solar masses) by sub-classing `~sbpy.activity.dust.dynamics.SolarGravityAndRadiationPressure` and updating :math:`GM`, the mass of the star times the gravitational constant:
+In this example, we compute the syndynes of a comet orbiting β Pic (1.8 solar masses) by sub-classing ``SolarGravityAndRadiationPressure`` and updating :math:`GM`, the mass of the star times the gravitational constant:
 
 .. doctest-requires:: scipy
 
    >>> import astropy.constants as const
-   >>> from sbpy.activity.dust import SolarGravityAndRadiationPressure
+   >>> from sbpy.dynamics import SolarGravityAndRadiationPressure
    >>>
    >>> class BetaPicGravityAndRadiationPressure(SolarGravityAndRadiationPressure):
    ...     _GM = 1.8 * SolarGravityAndRadiationPressure._GM

@@ -68,7 +68,7 @@ class State:
 
     frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
         Reference frame for ``r`` and ``v``.  Default is the
-        `~sbpy.activity.dust.dynamics.Arbitrary` frame.
+        `~sbpy.dynamics.Arbitrary` frame.
 
 
     Examples
@@ -76,7 +76,7 @@ class State:
 
     >>> from astropy.time import Time
     >>> import astropy.units as u
-    >>> from sbpy.activity.dust import State
+    >>> from sbpy.dynamics import State
     >>> r = [1e9, 1e9, 0] * u.km
     >>> v = [0, 0, 10] * u.km / u.s
     >>> t = Time("2022-07-24", scale="tdb")
