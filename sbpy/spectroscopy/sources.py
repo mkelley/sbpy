@@ -226,7 +226,7 @@ class SpectralSource(ABC):
         ----------
         wfb : `~astropy.units.Quantity`, `~synphot.SpectralElement`
             Wavelengths, frequencies, or bandpasses.  May also be a
-            list of ``SpectralElement``s.
+            list of ``SpectralElement``.
 
         unit : string, `~astropy.units.Unit`, optional
             Spectral flux density units for the output.  If ``None``,
