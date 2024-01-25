@@ -276,4 +276,3 @@ Reference/API
 -------------
 .. automodapi:: sbpy.calib
    :no-heading:
-   :inherited-members:
