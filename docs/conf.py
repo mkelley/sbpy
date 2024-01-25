@@ -78,6 +78,9 @@ autosectionlabel_prefix_document = True
 # Chooses the sections for labeling by its depth
 autosectionlabel_maxdepth = 2
 
+# Document inherited class members
+automodsumm_inherited_members = True
+
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
