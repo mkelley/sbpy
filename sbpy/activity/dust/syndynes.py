@@ -8,22 +8,357 @@ Generate cometary dust syndynes and synchrones.
 """
 
 __all__ = [
-    "Syn",
+    "SynGenerator",
+    "SynStates",
+    "SynCollection",
+    "Syndyne",
+    "Syndynes",
+    "Synchrone",
+    "Synchrones",
 ]
 
+import abc
 import time
 import logging
+from collections import UserList
 from typing import Iterable, List, Tuple, Union, Optional
 
+import numpy as np
 import astropy.units as u
 from astropy.time import Time
+from astropy.table import vstack
 from astropy.coordinates import SkyCoord
+from astropy.utils.metadata import MergeStrategy, enable_merge_strategies
 
+from ...data import Ephem
 from ...dynamics.models import DynamicalModel, SolarGravityAndRadiationPressure
-from ...dynamics.state import State
+from ...dynamics.state import StateBase, State
 
 
-class Syn:
+class SynStates(StateBase, abc.ABC):
+    """Abstract base class for particle states that make up a syndyne or synchrone."""
+
+    def __init__(
+        self,
+        source: State,
+        betas: np.ndarray,
+        ages: u.Quantity,
+        r: u.Quantity,
+        v: u.Quantity,
+        t: Time,
+        initial: State,
+        observer: Optional[State] = None,
+    ) -> None:
+        if u.Quantity(r).ndim != 2 or u.Quantity(v).ndim != 2:
+            raise ValueError("Syndyne only supports 2 dimensional r and v vectors.")
+
+        self.source: State = source
+        self.initial: State = initial
+        self.observer: Union[State, None] = observer
+
+        # syndynes will be single beta and array of ages, synchrones will be
+        # single age and array of betas
+        betas_: np.ndarray
+        ages_: np.ndarray
+        betas_, ages_ = np.broadcast_arrays(betas, ages)
+        self.betas: np.ndarray = betas_
+        self.ages: u.Quantity = u.Quantity(ages_, ages.unit)
+
+        super().__init__(r, v, t, frame=initial.frame)
+
+        # generate sky coordinates as needed
+        self.coords: Union[SkyCoord, None] = (
+            None if observer is None else observer.observe(self)
+        )
+
+    def to_ephem(self) -> Ephem:
+        """Convert to an sbpy ephemeris object.
+
+
+        Returns
+        -------
+        eph : Ephem
+
+
+        Notes
+        -----
+
+        Source and observer states are stored in the ``Ephem.meta`` attribute.
+
+        ========================= ====================
+        Attribute or quantity     ``Ephem`` field name
+        ========================= ====================
+        beta(s)                   beta_rad
+        age(s)                    age
+        t, as ``Time``            date
+        t, as ``Quantity``        t_relative
+        :math:`|r|`               r
+        :math:`|v \cdot \hat{r}|` rdot
+        coords                    coords
+        coords.ra                 ra
+        coords.dec                dec
+        coords.lon                lon
+        coords.lat                lat
+        coords.distance           delta
+        coords.radial_velocity    deltadot
+        x                         x
+        y                         y
+        z                         z
+        v_x                       vx
+        v_y                       vy
+        v_z                       vz
+        initial.x                 x initial
+        initial.y                 y initial
+        initial.z                 z initial
+        initial.v_x               vx initial
+        initial.v_y               vy initial
+        initial.v_z               vz initial
+        ========================= ====================
+
+        """
+
+        data: dict = {}
+        data["beta_rad"] = self.betas
+        data["age"] = self.ages
+
+        if isinstance(self.t, Time):
+            data["date"] = self.t
+        else:
+            data["t"] = self.t
+
+        data["r"] = abs(self)[0]
+        data["rdot"] = np.sum(self.r * self.v, 1) / np.sqrt(np.sum(self.r * self.r, 1))
+
+        if self.observer is not None:
+            for k, v in self.coords.representation_component_names.items():
+                if v in ("lon", "lat"):
+                    data[k] = getattr(self.coords, k)
+                elif v == "distance":
+                    data["delta"] = getattr(self.coords, k)
+            data["deltadot"] = self.coords.radial_velocity
+            data["coords"] = self.coords
+
+        data["x"] = self.x
+        data["y"] = self.y
+        data["z"] = self.z
+        data["vx"] = self.v_x
+        data["vy"] = self.v_y
+        data["vz"] = self.v_z
+        data["x initial"] = self.initial.x
+        data["y initial"] = self.initial.y
+        data["z initial"] = self.initial.z
+        data["vx initial"] = self.initial.v_x
+        data["vy initial"] = self.initial.v_y
+        data["vz initial"] = self.initial.v_z
+
+        meta: dict = {}
+        meta["source"] = {
+            "r": self.source.r,
+            "v": self.source.v,
+            "t": self.source.t,
+            "frame": self.source.frame,
+        }
+        if self.observer is None:
+            meta["observer"] = None
+        else:
+            meta["observer"] = {
+                "r": self.observer.r,
+                "v": self.observer.v,
+                "t": self.observer.t,
+                "frame": self.observer.frame,
+            }
+
+        return Ephem.from_dict(data, meta=meta)
+
+
+class Syndyne(SynStates):
+    """Collection of particle states that make up a syndyne.
+
+
+    Parameters
+    ----------
+    source : State
+        The source of the syndyne dust.
+
+    beta : float
+        The beta-value of this syndyne.
+
+    ages : ~astropy.units.Quantity
+        Array of particle ages, shape = (N,).
+
+    r : `~astropy.units.Quantity`
+        Position (x, y, z), shape = (N, 3).  Same coordinate frame as ``source``.
+
+    v : `~astropy.units.Quantity`
+        Velocity (x, y, z), shape = (N, 3).  Same coordinate frame as ``source``.
+
+    t : `~astropy.time.Time` or `~astropy.units.Quantity`
+        Time of observation.
+
+    observer : `~sbpy.dynamics.State`, optional
+        The observer, used to generate sky coordinates.
+
+    """
+
+    def __init__(
+        self,
+        source: State,
+        beta: float,
+        ages: u.Quantity,
+        r: u.Quantity,
+        v: u.Quantity,
+        t: Time,
+        initial: State,
+        observer: Optional[State] = None,
+    ) -> None:
+        super().__init__(source, beta, ages, r, v, t, initial, observer=observer)
+
+    @property
+    def beta(self) -> float:
+        """Syndyne beta value."""
+        return self.betas[0]
+
+
+class Synchrone(SynStates):
+    """Collection of particle states that make up a synchrone.
+
+
+    Parameters
+    ----------
+    source : State
+        The source of the synchrone dust.
+
+    betas : array
+        The beta-values of this synchrone, shape = (N,).
+
+    age : ~astropy.units.Quantity
+        The particle age of this synchrone.
+
+    r : `~astropy.units.Quantity`
+        Position (x, y, z), shape = (N, 3).
+
+    v : `~astropy.units.Quantity`
+        Velocity (x, y, z), shape = (N, 3).
+
+    t : `~astropy.time.Time` or `~astropy.units.Quantity`
+        Time of observation.
+
+    observer : `~sbpy.dynamics.State`, optional
+        The observer, used to generate sky coordinates.
+
+    """
+
+    def __init__(
+        self,
+        source: State,
+        betas: Iterable[float],
+        age: u.Quantity,
+        r: u.Quantity,
+        v: u.Quantity,
+        t: Time,
+        initial: State,
+        observer: Optional[State] = None,
+    ) -> None:
+        super().__init__(source, betas, age, r, v, t, initial, observer=observer)
+
+    @property
+    def age(self) -> u.Quantity:
+        """Synchrone age."""
+        return self.ages[0]
+
+
+class SynCollection:
+    """Immutable collection of syndynes or synchrones.
+
+
+    Parameters
+    ----------
+
+    items : array of `Syndyne` or `Synchone`
+        The items.
+
+    """
+
+    data_type = SynStates
+
+    def __init__(self, items: Iterable[SynStates]) -> None:
+        self._data = []
+        if type(items) == type(self._data):
+            self._data[:] = items
+        elif isinstance(items, SynCollection):
+            self._data[:] = items._data
+        else:
+            self._data[:] = list(items)
+
+        if any([not isinstance(s, self.data_type) for s in self._data]):
+            raise TypeError(
+                "All items must be an instance of {}".format(self.data_type)
+            )
+
+    def __init_subclass__(cls, /, data_type, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.data_type = data_type
+
+    def __len__(self) -> int:
+        """Number of items in the container."""
+        return len(self._data)
+
+    def __getitem__(self, k: Union[int, tuple, slice]) -> SynStates:
+        return self._data[k]
+
+    def to_ephem(self) -> Ephem:
+        """Convert to an sbpy ephemeris object.
+
+        Only the metadata from the first item is retained.
+
+        """
+
+        if len(self) == 0:
+            return Ephem()
+
+        tables: List[Ephem] = [s.to_ephem().table for s in self]
+
+        return Ephem.from_table(
+            vstack(tables, metadata_conflicts="error"),
+            meta=tables[0].meta,
+        )
+
+
+class Syndynes(SynCollection, data_type=Syndyne):
+    """Collection of syndynes.
+
+
+    Parameters
+    ----------
+
+    items : array of `Syndyne`
+        The items.
+
+    """
+
+    def __repr__(self) -> str:
+        beta: np.ndarray = np.array([syndyne.beta for syndyne in self])
+        return f"<{type(self).__name__}: betas={str(beta)}>"
+
+
+class Synchrones(SynCollection, data_type=Synchrone):
+    """Collection of synchrones.
+
+
+    Parameters
+    ----------
+
+    items : array of `Synchrone`
+        The items.
+
+    """
+
+    def __repr__(self) -> str:
+        age: u.Quantity = u.Quantity([synchrone.age for synchrone in self])
+        return f"<{type(self).__name__}: ages={str(age)}>"
+
+
+class SynGenerator:
     """Syndyne / synchrone generator for cometary dust.
 
 
@@ -80,7 +415,9 @@ class Syn:
         self.betas: u.Quantity = u.Quantity(betas, "").reshape((-1,))
         self.ages: u.Quantity = u.Quantity(ages, "s").reshape((-1,))
         self.observer: State = observer
-        self.solver = SolarGravityAndRadiationPressure() if solver is None else solver
+        self.solver: DynamicalModel = (
+            SolarGravityAndRadiationPressure() if solver is None else solver
+        )
 
         self.initialize_states()
 
@@ -129,7 +466,7 @@ class Syn:
         )
         logger.info(f"{(t1 - t0) / self.betas.size / self.ages.size} s/particle.")
 
-    def get_syndyne(self, i: int) -> Tuple[float, State, SkyCoord]:
+    def syndyne(self, i: int) -> Syndyne:
         """Get a single syndyne.
 
 
@@ -142,29 +479,26 @@ class Syn:
 
         Returns
         -------
-
-        beta : float
-            The syndyne's beta value.
-
-        syn : State
-            The particle states.
-
-        coords : SkyCoord, optional
-            The observed coordinates.  Only returned when ``.observer`` is
-            defined.
+        syndyne : Syndyne
 
         """
 
         n: int = self.ages.size
-        syn: State = self.particles[i * n : (i + 1) * n]
+        indices: slice = slice(i * n, (i + 1) * n)
+        state: State = self.particles[indices]
 
-        if self.observer is None:
-            return float(self.betas[i]), syn
+        return Syndyne(
+            self.source,
+            self.betas[i],
+            self.ages,
+            state.r,
+            state.v,
+            state.t,
+            self.initial_states[indices],
+            observer=self.observer,
+        )
 
-        coords: SkyCoord = self.observer.observe(syn)
-        return float(self.betas[i]), syn, coords
-
-    def get_synchrone(self, i: int) -> Tuple[u.Quantity, State, SkyCoord]:
+    def synchrone(self, i: int) -> Synchrone:
         """Get a single synchrone.
 
 
@@ -176,53 +510,50 @@ class Syn:
 
         Returns
         -------
-        age : `astropy.units.Quantity`
-            The syndyne's age.
-
-        syn : State
-            The particle states.
-
-        coords : SkyCoord, optional
-            The observed coordinates.  Only returned when ``.observer`` is
-            defined.
+        synchrone : Synchrone
 
         """
 
         n: int = self.ages.size
-        syn: State = self.particles[i::n]
+        indices: slice = slice(i, None, n)
+        state: State = self.particles[indices]
 
-        if self.observer is None:
-            return self.ages[i], syn
+        return Synchrone(
+            self.source,
+            self.betas,
+            self.ages[i],
+            state.r,
+            state.v,
+            state.t,
+            self.initial_states[indices],
+            observer=self.observer,
+        )
 
-        coords: SkyCoord = self.observer.observe(syn)
-        return self.ages[i], syn, coords
-
-    def dynes(self) -> Tuple[float, State, SkyCoord]:
-        """Iterator for each syndyne from `get_syndyne`.
-
-
-        Returns
-        -------
-        iterator
-
-        """
-        for i in range(len(self.betas)):
-            yield self.get_syndyne(i)
-
-    def chrones(self) -> Tuple[u.Quantity, State, SkyCoord]:
-        """Iterator for each synchrone from `get_synchrone`.
+    def syndynes(self) -> Syndynes:
+        """Get a collection of all syndynes.
 
 
         Returns
         -------
-        iterator
+        syndynes : Syndynes
 
         """
 
-        for i in range(len(self.ages)):
-            yield self.get_synchrone(i)
+        return Syndynes([self.syndyne(i) for i in range(len(self.betas))])
 
-    def get_orbit(self, dt: u.Quantity) -> Union[State, Tuple[State, SkyCoord]]:
+    def synchrones(self) -> Synchrones:
+        """Get a collection of all synchrones.
+
+
+        Returns
+        -------
+        synchrones : Synchrones
+
+        """
+
+        return Synchrones([self.synchrone(i) for i in range(len(self.ages))])
+
+    def source_orbit(self, dt: u.Quantity) -> Union[State, Tuple[State, SkyCoord]]:
         """Calculate and observe the orbit of the dust source.
 
 

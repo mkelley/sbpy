@@ -1,5 +1,9 @@
+******************
 Time (`sbpy.time`)
-==================
+******************
+
+Ephemeris time
+==============
 
 References to times in `sbpy` use the `astropy.time.Time` class.  For consistency with other tools, especially JPL Horizons and NAIF SPICE, `sbpy` defines an "Ephemeris Time" format as the number of seconds from the J2000 epoch in the TDB scale.  To use this enhancement, simply import the `sbpy.time` sub-module, and pass the format "et" when initializing a ``Time`` object:
 
@@ -20,3 +24,10 @@ Or, use the ``et`` property to transform dates to ephemeris time:
 
     >>> Time("2010-11-04 13:59:47.31", scale="utc").et
     342151253.4925505
+
+
+Reference/API
+=============
+
+.. automodapi:: sbpy.time
+    :no-main-docstr:

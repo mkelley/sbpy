@@ -10,37 +10,35 @@ Dynamical state.
 
 __all__ = [
     "ArbitraryFrame",
+    "StateBase",
     "State",
+    "SolverFailed",
 ]
 
 import abc
 from typing import Iterable, List, Optional, Tuple, TypeVar, Union
 
-import numpy as np
-
 try:
-    from scipy.integrate import solve_ivp
+    # python 3.11 feature
+    from typing import Self
 except ImportError:
-    pass
+    Self = TypeVar("Self", bound="StateBase")
 
+import numpy as np
 from astropy.time import Time
 import astropy.units as u
 from astropy.coordinates import frame_transform_graph, SkyCoord, BaseCoordinateFrame
 import astropy.coordinates.representation as repr
-import astropy.constants as const
 
 from .. import data as sbd
 from ..data.ephem import Ephem
 from ..exceptions import SbpyException
-from ..utils.decorators import requires
-from .. import time  # noqa: F401
 
 
 class SolverFailed(SbpyException):
     """DynamicalModel solver failed."""
 
 
-StateType = TypeVar("StateType", bound="State")
 FrameInputTypes = TypeVar("FrameInputTypes", str, BaseCoordinateFrame)
 
 
@@ -51,8 +49,8 @@ class ArbitraryFrame(BaseCoordinateFrame):
     default_differential = repr.CartesianDifferential
 
 
-class State:
-    """Dynamical state of an asteroid, comet, dust grain, etc.
+class StateBase(abc.ABC):
+    """Abstract base class for dynamical state.
 
 
     Parameters
@@ -67,8 +65,8 @@ class State:
         Time, a scalar or shape = (N,).
 
     frame : `~astropy.coordinates.BaseCoordinateFrame` class or string, optional
-        Reference frame for ``r`` and ``v``.  Default is the
-        `~sbpy.dynamics.Arbitrary` frame.
+        Reference frame for ``r`` and ``v``.  Default:
+        `~sbpy.dynamics.ArbitraryFrame`.
 
 
     Examples
@@ -82,7 +80,9 @@ class State:
     >>> t = Time("2022-07-24", scale="tdb")
     >>> state = State(r, v, t)
 
-    Or, specify time with relative to an arbitrary epoch: >>> t = 327 * u.day
+    Or, specify time with relative to an arbitrary epoch:
+
+    >>> t = 327 * u.day
     >>> state = State(r, v, t)
 
 
@@ -91,34 +91,24 @@ class State:
 
     State data is presently immutable.
 
-    State coordinates are internally stored in a
-    `~astropy.coordinates.BaseCoordinateFrame` object.
-
     """
 
     def __init__(
         self,
         r: u.Quantity,
         v: u.Quantity,
-        t: Time,
+        t: Union[u.Quantity, Time],
         frame: Optional[FrameInputTypes] = None,
     ) -> None:
-        if isinstance(t, u.Quantity):
-            self._t = t
-        else:
-            self._t = Time(t)
-
         frame_class: BaseCoordinateFrame = self._get_frame_class(frame)
         frame_kwargs: dict = {}
 
         # some frames require observation time for coordinate transformations
-        # but we can't rely on this attribute, so we separately store time in
-        # self.t
         if "obstime" in frame_class.frame_attributes:
-            frame_kwargs["obstime"] = self.t
+            frame_kwargs["obstime"] = t
 
         xyz_axis: int = 1 if np.ndim(r) != 1 else 0
-        self._data = frame_class(
+        self._data: BaseCoordinateFrame = frame_class(
             repr.CartesianRepresentation(
                 u.Quantity(r),
                 xyz_axis=xyz_axis,
@@ -132,6 +122,17 @@ class State:
 
         if self.r.ndim > 2:
             raise ValueError("State only supports 1 and 2 dimensional r and v vectors.")
+
+        if np.size(t) != len(self):
+            if isinstance(t, u.Quantity):
+                self._t = u.Quantity([t] * len(self))
+            else:
+                self._t = Time([t] * len(self))
+        else:
+            try:
+                self._t = u.Quantity(t)
+            except TypeError:
+                self._t = Time(t)
 
     def __repr__(self) -> str:
         return (
@@ -148,11 +149,11 @@ class State:
         else:
             return self.r.shape[0]
 
-    def __getitem__(self, k: Union[int, tuple, slice]) -> StateType:
+    def __getitem__(self, k: Union[int, tuple, slice]) -> Self:
         """Get the state(s) at ``k``."""
         return State(self.r[k], self.v[k], self.t[k], frame=self.frame)
 
-    def __add__(self, other: StateType) -> StateType:
+    def __add__(self, other: Self) -> Self:
         """Vector addition of two states.
 
         Time is taken from the left operand.
@@ -166,7 +167,7 @@ class State:
             frame=self.frame,
         )
 
-    def __sub__(self, other: StateType) -> StateType:
+    def __sub__(self, other: Self) -> Self:
         """Vector subtraction of two states.
 
         Time is taken from the left operand.
@@ -175,7 +176,7 @@ class State:
 
         return self + -other
 
-    def __neg__(self) -> StateType:
+    def __neg__(self) -> Self:
         """Invert the direction of the state vector position and velocity."""
         return State(
             -self.r,
@@ -256,7 +257,7 @@ class State:
         return np.hstack([self.r.to_value("km"), self.v.to_value("km/s")])
 
     @property
-    def t(self) -> Time:
+    def t(self) -> Union[Time, u.Quantity]:
         """Time."""
         return self._t
 
@@ -270,14 +271,14 @@ class State:
         return self._data.replicate_without_data()
 
     def to_skycoord(self) -> SkyCoord:
-        """State as a `~astropy.coordinates.SkyCoord` object."""
+        """Convert to a `~astropy.coordinates.SkyCoord` object."""
 
         if hasattr(self._data, "obstime"):
             return SkyCoord(self._data, representation_type="cartesian")
         else:
             return SkyCoord(self._data, obstime=self.t, representation_type="cartesian")
 
-    def transform_to(self, frame: FrameInputTypes) -> StateType:
+    def transform_to(self, frame: FrameInputTypes) -> Self:
         """Transform state into another reference frame.
 
 
@@ -309,32 +310,10 @@ class State:
             frame=transformed.replicate_without_data(),
         )
 
-    def observe(self, target: StateType) -> SkyCoord:
-        """Project a target's position onto the sky.
 
-
-        Parameters
-        ----------
-        target : State
-            The target to observe.
-
-
-        Returns
-        -------
-        coords : SkyCoord
-
-
-        """
-
-        # transform into the observer's reference frame
-        target_in_frame: State = target.transform_to(self.frame)
-
-        coords: SkyCoord = (target_in_frame - self).to_skycoord()
-        coords.representation_type = "spherical"
-        return coords
-
+class State(StateBase):
     @classmethod
-    def from_states(cls, states: Iterable[StateType]) -> StateType:
+    def from_states(cls, states: Iterable[Self]) -> Self:
         """Initialize from a list of states.
 
         The resulting reference frame will be that of ``states[0]``.
@@ -356,7 +335,7 @@ class State:
         return State(r, v, t, frame=frame)
 
     @classmethod
-    def from_skycoord(cls, coords: SkyCoord) -> StateType:
+    def from_skycoord(cls, coords: SkyCoord) -> Self:
         """Initialize from astropy `~astropy.coordinates.SkyCoord`.
 
 
@@ -382,7 +361,7 @@ class State:
         cls,
         eph: Ephem,
         frame: Optional[FrameInputTypes] = None,
-    ) -> StateType:
+    ) -> Self:
         """Initialize from an `~sbpy.data.Ephem` object.
 
 
@@ -437,3 +416,32 @@ class State:
             "`Ephem` does not have the required time, position, and/or"
             " velocity fields."
         )
+
+    def observe(self, target: Self) -> SkyCoord:
+        """Project a target's position onto the sky.
+
+
+        Parameters
+        ----------
+        target : State
+            The target to observe.
+
+
+        Returns
+        -------
+        coords : SkyCoord
+
+
+        """
+
+        # transform into the observer's reference frame
+        target_in_frame: State = target.transform_to(self.frame)
+
+        coords: SkyCoord = (target_in_frame - self).to_skycoord()
+        coords.representation_type = "spherical"
+        return coords
+
+
+State.__init__.__doc__ = """Dynamical state.""" + "\n".join(
+    StateBase.__doc__.splitlines()[1:]
+)

@@ -1,11 +1,11 @@
 Dust comae and tails (`sbpy.activity.dust`)
-===========================================
+*******************************************
 
 Cometary dust is the refractory material released by comets.  This sub-module provides simple photometric models of cometary dust comae, and dynamical models for cometary dust tails.
 
 
 *Afρ* and *εfρ* models
-----------------------
+======================
 
 `sbpy` has two classes to support observations and models of a coma continuum: `~sbpy.activity.dust.core.Afrho` and `~sbpy.activity.dust.core.Efrho`.
 
@@ -26,7 +26,7 @@ The *εfρ* parameter is the thermal emission counterpart to *Afρ*, replacing a
 where :math:`T_c` is the spectral temperature of the continuum (Kelley et al. 2013).
 
 *Afρ* and *εfρ* are quantities
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------------
 
 ``Afrho`` and ``Efrho`` are subclasses of `astropy`'s `~astropy.units.Quantity` and carry units of length.
 
@@ -49,7 +49,7 @@ They may be converted to other units of length just like any `~astropy.units.Qua
 .. _afrho-to-from-flux-density:
 
 Convert to/from flux density
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+----------------------------
 
 The quantities may be initialized from flux densities.  Here, we reproduce one of the calculations from the original A'Hearn et al. (1984) work:
 
@@ -103,8 +103,8 @@ The ``Afrho`` class may be converted to a flux density, and the original value i
    5994.110239075767 cm
 
 Thermal emission with *εfρ*
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   
+---------------------------
+
 The ``Efrho`` class has the same functionality as the ``Afrho`` class.  The most important difference is that *εfρ* is calculated using a Planck function and temperature.  `sbpy` follows common practice and parameterizes the temperature as a constant scale factor of :math:`T_{BB} = 278\,r_h^{1/2}`\  K, the equilibrium temperature of a large blackbody sphere at a distance :math:`r_h` from the Sun.
 
 Reproduce the *εfρ* of 246P/NEAT from Kelley et al. (2013).
@@ -125,7 +125,7 @@ Compare to 397.0 cm and 424.6 cm listed in Kelley et al. (2013).
 
 
 To/from magnitudes
-^^^^^^^^^^^^^^^^^^
+------------------
 
 ``Afrho`` and ``Efrho`` also work with `astropy`'s magnitude units.  If the conversion between Vega-based magnitudes is required, then `sbpy`'s calibration framework (:ref:`sbpy-calib`) will be used.
 
@@ -146,7 +146,7 @@ Estimate the *Afρ* of comet C/2012 S1 (ISON) based on Pan-STARRS 1 photometry i
 
 
 Phase angles and functions
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------
 
 Phase angle was not used in the previous section.  In the *Afρ* formalism, "albedo" includes the scattering phase function, and is more precisely written *A(θ)*, where *θ* is the phase angle.  The default behavior for ``Afrho`` is to compute *A(θ)fρ* as opposed to *A(0°)fρ*.  Returning to the A'Hearn et al. data, we scale *Afρ* to 0° from 3.3° phase using the :func:`~sbpy.activity.dust.Afrho.to_phase` method:
 
@@ -182,7 +182,7 @@ To correct an observed flux density for the phase function, use the ``phasecor``
 
 
 Using apertures
-^^^^^^^^^^^^^^^
+---------------
 
 Other apertures may be used, as long as they can be converted into an equivalent radius, assuming a coma with a *1/ρ* surface brightness distribution.  `~sbpy.activity` has a collection of useful geometries.
 
@@ -203,13 +203,13 @@ Other apertures may be used, as long as they can be converted into an equivalent
 
 
 Dust syndynes and synchrones
-----------------------------
+============================
 
 Syndynes are lines in space connecting particles that are experiencing the same forces.  A syndyne is parameterized by :math:`\beta`, the ratio of the force from solar radiation to the force from solar gravity, :math:`F_r / F_g`, and age (or time of release).  Thus, all particles in a syndyne have a constant :math:`\beta` but variable age.  Similarly, synchrones are lines of constant particle age, but variable :math:`\beta`.
 
 
 Syndynes
-^^^^^^^^
+--------
 
 Syndynes are generated with the `~sbpy.activity.dust.syndynes.Syn` class.  The class requires a `~sbpy.dynamics.state.State` object, :math:`\beta` values, and particle ages from which to generate the syndynes.
 
@@ -278,9 +278,9 @@ Individual syndynes may be retrieved with the :meth:`~sbpy.activity.dust.syndyne
 
 
 Synchrones
-^^^^^^^^^^
+----------
 
-Synchrones are also simulated with the ``Syndynes`` class, but instead retrieved with the :meth:`~sbpy.activity.dust.syndynes.Syn.get_synchrone` and :meth:`~sbpy.activity.dust.syndynes.Syn.chrones` methods.
+Synchrones are also simulated with the ``Syn`` class, but instead retrieved with the :meth:`~sbpy.activity.dust.syndynes.Syn.get_synchrone` and :meth:`~sbpy.activity.dust.syndynes.Syn.chrones` methods.
 
 .. doctest-requires:: scipy
 
@@ -291,9 +291,9 @@ Synchrones are also simulated with the ``Syndynes`` class, but instead retrieved
 
 
 Projecting onto the sky
-^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------
 
-Syndynes and synchrones may be projected onto the sky as seen by a telescope.  This requires an observer.  For precision work, the ``Syndynes`` source object's ``State`` should be defined in a heliocentric reference frame.  Typically, the observer will observe in an equatorial reference frame, but your needs may vary.  Here, we generate syndynes in the same J2000 heliocentric ecliptic coordinate frame that <JPL Horizons `https://ssd.jpl.nasa.gov/horizons/manual.html#frames`>_ and the <NAIF SPICE toolkit `https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html#Frames%20Supported%20in%20SPICE`>_ use, `~astropy.coordinates.HeliocentricEclipticIAU76`, and observe the results in the `~astropy.coordinates.ICRS` reference frame:
+Syndynes and synchrones may be projected onto the sky as seen by a telescope.  This requires an observer.  For precision work, the ``Syn`` source object's ``State`` should be defined in a heliocentric reference frame.  Typically, the observer will observe in an equatorial reference frame, but your needs may vary.  Here, we generate syndynes in the same J2000 heliocentric ecliptic coordinate frame that <JPL Horizons `https://ssd.jpl.nasa.gov/horizons/manual.html#frames`>_ and the <NAIF SPICE toolkit `https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html#Frames%20Supported%20in%20SPICE`>_ use, `~astropy.coordinates.HeliocentricEclipticIAU76`, and observe the results in the `~astropy.coordinates.ICRS` reference frame:
 
 .. doctest-requires:: scipy
 
@@ -323,8 +323,8 @@ With the observer and coordinate frames defined, the syndyne and synchrone metho
    21h05m29s -33d55m36s
 
 
-Source object orbit
-^^^^^^^^^^^^^^^^^^^
+Source object's projected orbit
+-------------------------------
 
 Calculating the positions of the projected orbit of the source object may be helpful for interpreting an observation or a set of syndynes.  They are calculated with the :func:`~sbpy.activity.dust.synydnes.Syn.get_orbit` method:
 
@@ -335,7 +335,7 @@ Calculating the positions of the projected orbit of the source object may be hel
 
 
 Using other dynamical models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+----------------------------
 
 `sbpy`'s built-in models solve the equations of motion for dust grains given two-body dynamics.  Users may provide their own models in order to, e.g., improve code performance, add planetary perturbations, model grain fragmentation, etc..  Use the `~sbpy.dynamics.SolarGravityAndRadiationPressure` class as a template.
 
@@ -354,7 +354,7 @@ In this example, we compute the syndynes of a comet orbiting β Pic (1.8 solar m
 
 
 Plotting syndynes and synchrones
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------
 
 Generally, we are interested in plotting syndynes and synchrones on an image of a comet.  The accuracy of the coordinates object depends on the the comet and observer states, but also on whether or not light travel time is accounted for.  The `sbpy` testing suite shows that arcsecond-level accuracy is possible, but this is generally not accurate enough for direct comparison to typical images of comets.  Instead, it helps to compute the positions of the syndynes and synchrone coordinate objects relative to the comet, and plot the results.
 
@@ -406,7 +406,7 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
    import astropy.units as u
    from astropy.time import Time
    from sbpy.dynamics import State
-   from sbpy.activity.dust import Syndynes
+   from sbpy.activity.dust import Syn
 
    r = [2, 0, 0] * u.au
    v = [0, 30, 0] * u.km / u.s
@@ -422,7 +422,7 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
        t=comet.t,
        frame="icrs",
    )
-   syn = Syndynes(comet, betas, ages, observer=observer)
+   syn = Syn(comet, betas, ages, observer=observer)
    syn.solve()
 
    coords0 = observer.observe(comet)
@@ -433,14 +433,14 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
    
    fig, ax = plt.subplots()
    
-   for beta, states, coords in syn.syndynes():
+   for beta, states, coords in syn.dynes():
        # don't draw the beta = 0 syndyne
        if beta == 0:
            continue
        plot(ax, coords, label=f"$\\beta={beta:.2g}$")
    
    # use islice to plot every 5th synchrone
-   for age, states, coords in islice(syn.synchrones(), 4, None, 5):
+   for age, states, coords in islice(syn.chrones(), 4, None, 5):
        plot(ax, coords, ls="--", label=f"$\Delta t={age.to(u.d):.2g}$")
    
    # and plot the orbit
@@ -460,6 +460,12 @@ Generally, we are interested in plotting syndynes and synchrones on an image of 
 
 
 Reference/API
--------------
-.. automodapi:: sbpy.activity.dust
-   :no-heading:
+=============
+
+.. automodapi:: sbpy.activity.dust.core
+   :no-main-docstr:
+   :inherited-members:
+
+.. automodapi:: sbpy.activity.dust.syndynes
+   :no-main-docstr:
+   :inherited-members:

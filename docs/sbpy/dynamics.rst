@@ -1,11 +1,12 @@
+**************************
 Dynamics (`sbpy.dynamics`)
-==========================
+**************************
 
 `sbpy` has the capability to describe dynamical states (position and velocity vectors), and to integrate test particle orbits.  These are primarily intended to support the generation of :ref:`comet syndynes <sbpy/activity/dust:dust syndynes and synchrones>`.
 
 
-Dynamical state 
----------------
+Dynamical state
+===============
 
 `~sbpy.dynamics.state.State` objects encapsulate the position and velocity of an object at a given time.  Create a ``State`` for a comet at :math:`x=2` au, moving along the y-axis at a speed of 30 km/s:
 
@@ -50,7 +51,7 @@ Or, index the ``State`` object itself:
 
 
 Convert to/from ``Ephem`` and ``SkyCoord``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------------------------
 
 State objects may be initialized from ephemeris objects (`~sbpy.data.Ephem`), provided they contain time, and 3D position and velocity:
 
@@ -93,7 +94,7 @@ And back to a ``SkyCoord`` object:
 
 
 Reference frames
-^^^^^^^^^^^^^^^^
+----------------
 
 Coordinate reference frames can be specified with the ``frame`` keyword argument during initialization.  Most of `astropy` reference frames are supported (see `astropy's Built-in Frame Classes <https://docs.astropy.org/en/stable/coordinates/index.html#module-astropy.coordinates.builtin_frames>`_):
 
@@ -131,7 +132,7 @@ Use :func:`~sbpy.dynamics.state.State.transform_to` to transform between referen
 
 
 State lengths, subtraction, and observations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------------------------
 
 A few mathematical operations are possible.  Get the magnitude of the heliocentric distance and velocity with `abs`:
 
@@ -168,7 +169,7 @@ The result, a `~astropy.coordinates.SkyCoord` object, is expressed in the refere
 
 
 Dynamical integrators
----------------------
+=====================
 
 A state object may be propagated to a new time using a dynamical integrator.  Three integrators are defined.  Use `~sbpy.dynamics.FreeExpansion` for motion in free space, `~sbpy.dynamics.SolarGravity` for orbits around the Sun, and `~sbpy.dynamics.SolarGravityAndRadiationPressure`  for orbits around the Sun considering radiation pressure.
 
@@ -194,4 +195,13 @@ Other integrators may be defined.  Use the above classes as templates or as base
   >>> class EarthGravity(SolarGravity):
   ...     _GM = 3.9860043543609598e5  # km3/s2
 
-.. automodapi:: sbpy.dynamics
+Reference/API
+=============
+
+.. automodapi:: sbpy.dynamics.state
+  :no-main-docstr:
+  :inherited-members:
+
+.. automodapi:: sbpy.dynamics.models
+  :no-main-docstr:
+  :inherited-members:
