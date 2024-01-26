@@ -413,7 +413,7 @@ class SynGenerator:
 
         self.source: State = source
         self.betas: u.Quantity = u.Quantity(betas, "").reshape((-1,))
-        self.ages: u.Quantity = u.Quantity(ages, "s").reshape((-1,))
+        self.ages: u.Quantity = u.Quantity(ages).reshape((-1,))
         self.observer: State = observer
         self.solver: DynamicalModel = (
             SolarGravityAndRadiationPressure() if solver is None else solver
@@ -422,7 +422,7 @@ class SynGenerator:
         self.initialize_states()
 
     def __repr__(self) -> str:
-        return f"<Syn:\n betas\n    {self.betas}\n ages\n    {self.ages}>"
+        return f"<SynGenerator:\n betas\n    {self.betas}\n ages\n    {self.ages}>"
 
     def initialize_states(self) -> None:
         """Generate the initial particle states.

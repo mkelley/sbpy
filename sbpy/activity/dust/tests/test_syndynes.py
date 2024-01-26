@@ -358,11 +358,11 @@ class TestSyn:
         comet, betas, ages, dust, observer = example_syndynes
         assert (
             repr(dust)
-            == """<Syn:
+            == """<SynGenerator:
  betas
     [0.1]
  ages
-    [  86400.  864000. 8640000.] s>"""
+    [  1.  10. 100.] d>"""
         )
 
     def test_initialize_states(self, example_syndynes):
