@@ -5,10 +5,10 @@ sbpy Imageanalysis Module
 created on June 23, 2017
 """
 
-__all__ = ['CometaryEnhancement', 'PSFSubtraction', 'centroid']
+__all__ = ["CometaryEnhancement", "PSFSubtraction", "centroid"]
 
 
-def centroid(im, gyx, method='weighted'):
+def centroid(im, gyx, method="weighted"):
     """Method to centroid on a target used different methods
 
     Parameters
@@ -37,7 +37,7 @@ def centroid(im, gyx, method='weighted'):
     """
 
 
-class CometaryEnhancement():
+class CometaryEnhancement:
     def __init__(self, im, cyx):
         self.im = im
         self.cyx = cyx
@@ -102,10 +102,8 @@ class CometaryEnhancement():
 
         """
 
-    # how to implement Ginga interface?
 
-
-class PSFSubtraction():
+class PSFSubtraction:
 
     def create_psfmodel(im, cyx, **parameters):
         """Create a PSF model, ignoring the actual target
@@ -124,7 +122,7 @@ class PSFSubtraction():
 
         """
 
-    def subtract_psfmodel(im, psfmodel, cyx, scaling='peak'):
+    def subtract_psfmodel(im, psfmodel, cyx, scaling="peak"):
         """subtract a PSF model from the image
 
         Parameters
