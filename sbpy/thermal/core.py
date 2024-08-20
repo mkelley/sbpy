@@ -5,7 +5,7 @@ sbpy Thermal Module
 created on June 27, 2017
 """
 
-__all__ = ['ThermalClass', 'NonRotThermalModel', 'FastRotThermalModel']
+__all__ = ["ThermalClass", "NonRotThermalModel", "FastRotThermalModel"]
 
 import abc
 import numpy as np
@@ -13,103 +13,119 @@ from numpy.linalg import norm
 from scipy.integrate import dblquad
 import astropy.units as u
 import astropy.constants as const
+from astropy.coordinates import Angle
 from astropy.modeling.models import BlackBody
-from ..data import (Phys, Obs, Ephem, dataclass_input,
-                    quantity_to_dataclass)
+from ..data import Phys, Obs, Ephem, dataclass_input, quantity_to_dataclass
 
-__doctest_requires__ = {
-    "ThermalClass.flux": "astroquery"
-}
+__doctest_requires__ = {"ThermalClass.flux": "astroquery"}
 
 
 class ThermalClass(abc.ABC):
     """Abstract base class for thermal models.
 
-    This class implements the basic calculation for thermal models,
-    such as integration of total flux based on a temperature distribution.
+    This class implements the basic calculation for thermal models, such as
+    integration of total flux based on a temperature distribution.
+
+
+    Parameters
+    ----------
+    rh : `~sbpy.data.Ephem`, dictionary-like, or `~astropy.units.Quantity`
+        Heliocentric distance to evaluate the model.
+
+    phys : `~sbpy.data.Phys` or dictionary-like
+        Physical properties of the object:
+          - size as radius or diameter (e.g., `R` or `D`, required)
+          - bolometric (Bond) albdo (e.g., `A`, default 0.1)
+          - emissivity (`emissivity` or `epsilon`, default 0.9)
+          - infrared beaming parameter (`eta`, default 1.0)
+        Refer to the data class :ref:`field name documentation <field name
+        list>` for details on parameter names and units.
+
     """
 
-    @quantity_to_dataclass(rh=(Ephem, 'rh'))
+    @quantity_to_dataclass(eph=(Ephem, "rh"))
     @dataclass_input(phys=Phys)
-    def __init__(self, rh, phys):
-        """
-        Parameters
-        ----------
-        rh : `~sbpy.data.Ephem`, dict_like, number, or
-            `~astropy.units.Quantity`
-            If `~sbpy.data.Ephem` or dict_like, ephemerides of the object that
-            can include the heliocentric distance via keywords `r`.  If float
-            or `~astropy.units.Quantity`, then the heliocentric distance of an
-            object.  If heliocentric distance is not found, then it will be
-            assumed to be 1 au. If no unit is provided via type
-            `~astropy.units.Quantity`, then au is assumed
-        phys : `~sbpy.data.Phys`, dict_like
-            Physical properties of the object.  It can include the radius (or
-            diameter), bolometric Bond albedo, emissivity, and IR beaming
-            parameter of the object via keywords `R` (or `D`), `A`,
-            `emissivity`, and `eta`, or the equivalent names, respectively.
-            If any of the quantities is not specified, the following rules
-            will be follwed:
-                radius (or diameter) : raise a `ValueError`
-                albedo : default to 0.1
-                emissivity : default to 0.95
-                beaming : default to 1
-            If no unit is specified for radius (or diameter), then default to
-            km.
-        """
-        self.r = u.Quantity(rh['r'][0] if 'r' in rh else 1., u.au)
-        try:
-            self.R = u.Quantity(phys['R'][0], u.km)
-        except KeyError:
-            raise ValueError('Radius of the object is missing.')
-        self.A = phys['A'][0] if 'A' in phys else 0.1
-        self.emissivity = phys['emissivity'][0] if 'emissivity' in phys else 0.95
-        self.beaming = phys['eta'][0] if 'eta' in phys else 1.
+    def __init__(self, eph: Ephem, phys: Phys):
+        self.r = u.Quantity(eph["rh"], u.au)
+        self.phys = phys
+
+        # apply default values
+        if "A" not in phys:
+            self.phys["A"] = 0.1
+        if "emissivity" not in phys:
+            self.phys["emissivity"] = 0.9
+        if "eta" not in phys:
+            self.phys["eta"] = 1.0
+
+    @property
+    def bolometric_albedo(self):
+        return self.phys["A"]
+
+    @property
+    def emissivity(self):
+        return self.phys["emissivity"]
+
+    @property
+    def eta(self):
+        return self.phys["eta"]
 
     @abc.abstractmethod
-    def T(self, lon, lat):
-        """Temperature on the surface of an object.
+    def T(self, lon: Angle, lat: Angle):
+        """Temperature at a point on the surface of an object.
 
-        Needs to be overridden in subclasses.  This function needs to be able
-        to return a valid quantity for the full range of lon and lat, i.e.,
-        include the night side of an object.
 
-        lon : u.Quantity
-            Longitude
-        lat : u.Quantity
-            Latitude
+        Parameters
+        ----------
+        lon : `astropy.coordinates.Angle` or equivalent
+            Longitude.
+
+        lat : `astropy.coordinates.Angle` or equivalent
+            Latitude.
+
         """
+
+        # Needs to be overridden in subclasses.  This function needs to be able
+        # to return a valid quantity for the full range of lon and lat, i.e.,
+        # include the night side of an object.
+
         pass
 
     @u.quantity_input(wave_freq=u.m, equivalencies=u.spectral())
-    def _int_func(self, lon, lat, m, unit, wave_freq):
+    def _int_func(self, lon, lat, body_xform, unit, wave_freq):
         """Integral function for `fluxd`.
 
         Parameters
         ----------
         lon : float
-            Longitude in radiance
+            Sub-observer longitude in radians.
+
         lat : float
-            Latitude in fradiance
-        m : numpy array of shape (3, 3)
-            Transformation matrix to convert a vector in the frame to perform
-            integration to body-fixed frame.  This matrix can be calculated
-            with private method `_transfer_to_bodyframe`.  The integration
-            is performed in a frame where the sub-observer point is defined at
-            lon = 0, lat = 0.
+            Sub-observer latitude in radians.
+
+        body_xform : numpy array of shape (3, 3)
+            Transformation matrix to convert a vector in the model frame to the
+            body-fixed frame.  The model frame defines the sub-observer point to
+            be `lon = 0`, `lat = 0`.  This matrix can be calculated with private
+            method `_transfer_to_bodyframe`.
+
         unit : str or astropy.units.Unit
             Unit of the integral function.
+
         wave_freq : u.Quantity
             Wavelength or frequency of calculation
 
         Returns
         -------
-        float : Integral function to calculate total flux density.
+        fluxd : float
+            Spectral flux density in units of `unit`.
+
         """
-        lon1, lat1 = xyz2sph(*m.dot(sph2xyz(lon, lat)))
-        T = self.T(lon1 * u.rad, lat1 * u.rad)
+
+        body_lon, body_lat = xyz2sph(*body_xform.dot(sph2xyz(lon, lat)))
+
+        T = self.T(body_lon * u.rad, body_lat * u.rad)
         if np.isclose(T, 0 * u.K):
-            return 0.
+            return 0.0
         else:
             # the integral term needs to include a correction for latitude
             # with cos(lat), and a Lambertian emission term cos(lat) + cos(lon)
@@ -129,21 +145,32 @@ class ThermalClass(abc.ABC):
         this frame to the body-fixed frame to facilitate the calculation of
         surface temperature.
         """
-        los = sph2xyz(sublon.to_value('rad'), sublat.to_value('rad'))
+        los = sph2xyz(sublon.to_value("rad"), sublat.to_value("rad"))
         if np.isclose(norm(np.cross(los, [0, 0, 1])), 0):
             if sublat.value > 0:
                 m = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])
             else:
                 m = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
         else:
-            m = twovec(sph2xyz(sublon.to_value('rad'), sublat.to_value('rad')),
-                       0, [0, 0, 1], 2).T
+            m = twovec(
+                sph2xyz(sublon.to_value("rad"), sublat.to_value("rad")), 0, [0, 0, 1], 2
+            ).T
         return m
 
-    @u.quantity_input(wave_freq=u.m, delta=u.au, lon=u.deg, lat=u.deg,
-                      equivalencies=u.spectral())
-    def fluxd(self, wave_freq, delta, sublon, sublat, unit='W m-2 um-1',
-            error=False, epsrel=1e-3, **kwargs):
+    @u.quantity_input(
+        wave_freq=u.m, delta=u.au, lon=u.deg, lat=u.deg, equivalencies=u.spectral()
+    )
+    def fluxd(
+        self,
+        wave_freq,
+        delta,
+        sublon,
+        sublat,
+        unit="W m-2 um-1",
+        error=False,
+        epsrel=1e-3,
+        **kwargs
+    ):
         """Model thermal flux density of an object.
 
         Parameters
@@ -177,23 +204,28 @@ class ThermalClass(abc.ABC):
             or flux density and numerical error if `error = True`.
         """
         delta_ = u.Quantity(delta, u.km)
-        unit = unit + ' sr-1'
+        unit = unit + " sr-1"
         m = self._xform_to_bodyframe(sublon, sublat)
-        f = dblquad(self._int_func,
-                    -np.pi/2,
-                    np.pi/2,
-                    lambda x: -np.pi/2,
-                    lambda x: np.pi/2,
-                    args=(m, unit, wave_freq),
-                    epsrel=epsrel,
-                    **kwargs
-                   )
-        flx = u.Quantity(f, unit) * ((self.R / delta_)**2).to('sr',
-            u.dimensionless_angles()) * self.emissivity
+        f = dblquad(
+            self._int_func,
+            -np.pi / 2,
+            np.pi / 2,
+            lambda x: -np.pi / 2,
+            lambda x: np.pi / 2,
+            args=(m, unit, wave_freq),
+            epsrel=epsrel,
+            **kwargs
+        )
+        flx = (
+            u.Quantity(f, unit)
+            * ((self.R / delta_) ** 2).to("sr", u.dimensionless_angles())
+            * self.emissivity
+        )
         if error:
             return flx
         else:
             return flx[0]
+
 
 #    def flux(phys, eph, lam):
 #        """Model flux density for a given wavelength `lam`, or a list/array thereof
@@ -242,14 +274,15 @@ class ThermalClass(abc.ABC):
 
 
 class NonRotThermalModel(ThermalClass):
-    """Non-rotating object temperature distribution, i.e., STM, NEATM
-    """
+    """Non-rotating object temperature distribution, i.e., STM, NEATM"""
 
     @property
     def Tss(self):
         f_sun = const.L_sun / (4 * np.pi * self.r**2)
-        return (((1 - self.A) * f_sun / (self.beaming * self.emissivity
-            * const.sigma_sb)) ** 0.25).decompose()
+        return (
+            ((1 - self.A) * f_sun / (self.beaming * self.emissivity * const.sigma_sb))
+            ** 0.25
+        ).decompose()
 
     @u.quantity_input(lon=u.deg, lat=u.deg)
     def T(self, lon, lat):
@@ -270,18 +303,18 @@ class NonRotThermalModel(ThermalClass):
         if (abs(coslon) < prec) or (abs(coslat) < prec) or (coslon < 0):
             return 0 * u.K
         else:
-            return self.Tss * (coslon * coslat)**0.25
+            return self.Tss * (coslon * coslat) ** 0.25
 
 
 class FastRotThermalModel(ThermalClass):
-    """Fast-rotating object temperature distribution, i.e., FRM
-    """
+    """Fast-rotating object temperature distribution, i.e., FRM"""
 
     @property
     def Tss(self):
         f_sun = const.L_sun / (4 * np.pi * self.r**2)
-        return (((1 - self.A) * f_sun / (np.pi * self.emissivity
-            * const.sigma_sb)) ** 0.25).decompose()
+        return (
+            ((1 - self.A) * f_sun / (np.pi * self.emissivity * const.sigma_sb)) ** 0.25
+        ).decompose()
 
     @u.quantity_input(lon=u.deg, lat=u.deg)
     def T(self, lon, lat):
@@ -342,8 +375,10 @@ def twovec(axdef, indexa, plndef, indexp):
     plndef = np.asarray(plndef).flatten()
 
     if norm(np.cross(axdef, plndef)) == 0:
-        raise RuntimeError('The input vectors AXDEF and PLNDEF are linearly'
-            ' correlated and can\'t define a coordinate frame.')
+        raise RuntimeError(
+            "The input vectors AXDEF and PLNDEF are linearly"
+            " correlated and can't define a coordinate frame."
+        )
 
     M = np.eye(3)
     i1 = indexa % 3
@@ -371,18 +406,18 @@ def xyz2sph(x, y, z):
     y_ = np.asanyarray(y)
     z_ = np.asanyarray(z)
     lon = np.arctan2(y_, x_)
-    complete_angle = u.Quantity(2 * np.pi, u.rad) if isinstance(lon,
-        u.Quantity) else 2 * np.pi
+    complete_angle = (
+        u.Quantity(2 * np.pi, u.rad) if isinstance(lon, u.Quantity) else 2 * np.pi
+    )
     lon = (lon + complete_angle) % complete_angle
     lat = np.arctan2(z_, np.sqrt(x_ * x_ + y_ * y_))
     return np.stack([lon, lat])
 
 
-def sph2xyz(lon, lat, r=1.):
+def sph2xyz(lon, lat, r=1.0):
     """Convert (lon, lat) to (x, y, z), with a default length of unity."""
     if r is None:
-        r = 1. * u.dimensionless_unscaled if isinstance(lon,
-            u.Quantity) else 1.
+        r = 1.0 * u.dimensionless_unscaled if isinstance(lon, u.Quantity) else 1.0
     lon_ = np.asanyarray(lon)
     lat_ = np.asanyarray(lat)
     x = r * np.cos(lat) * np.cos(lon)
