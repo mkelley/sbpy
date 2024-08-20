@@ -818,7 +818,7 @@ class Conf:
         # Physical properties (dependent on other properties)
         {
             "description": "Infrared Beaming Parameter",
-            "fieldnames": ["eta"],
+            "fieldnames": ["eta", "beaming"],
             "provenance": ["phys", "obs"],
             "dimension": None,
         },
