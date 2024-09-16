@@ -3,6 +3,8 @@ from typing import Optional
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import Angle
+import astropy.constants as const
+from astropy.modeling.blackbody import BlackBody1D
 from .calib import Sun
 from .data import dataclass_input
 from .data.phys import Phys
@@ -11,7 +13,10 @@ from .units.typing import (
     SpectralFluxDensityQuantity,
     SpectralRadianceQuantity,
     SpectralQuantity,
+    UnitLike,
 )
+
+from numpy import pi
 
 
 class Surface(abc.ABC):
@@ -50,13 +55,13 @@ class Surface(abc.ABC):
         self,
         i: u.Quantity["angle"],
         e: u.Quantity["angle"],
-        alpha: u.Quantity["angle"],
+        phi: u.Quantity["angle"],
     ) -> float:
-        r"""Bidirectional reflectance.
+        r"""Reflectance.
 
         The surface is illuminated by incident flux density, :math:`F_i`, at an
         angle of :math:`i`, and emitted toward an angle of :math:`e`, measured
-        from the surface normal direction.  :math:`\alpha` is the
+        from the surface normal direction.  :math:`\phi` is the
         Sun-target-observer (phase) angle.
 
 
@@ -89,11 +94,12 @@ class Surface(abc.ABC):
     def emittance(
         self,
         e: u.Quantity["angle"],
+        phi: u.Quantity["angle"],
     ) -> float:
         r"""Emission of light.
 
         The surface is observed at an angle of :math:`e`, measured from the
-        surface normal direction.
+        surface normal direction, and at a solar phase angle of :math:`phi`.
 
 
         Parameters
@@ -103,6 +109,7 @@ class Surface(abc.ABC):
 
         pass
 
+    @abc.abstractmethod
     def spectral_radiance(
         self,
         F_i: SpectralFluxDensityQuantity,
@@ -110,7 +117,24 @@ class Surface(abc.ABC):
         rs: u.Quantity["length"],
         ro: u.Quantity["length"],
     ) -> SpectralRadianceQuantity:
-        """Observed radiance from a surface."""
+        """Observed radiance from a surface.
+
+
+        Parameters
+        ----------
+        F_i : `sbpy.units.Quantity`
+            Incident light, spectral flux density.
+
+        n : `numpy.ndarray`
+            Surface normal vector.
+
+        rs : `sbpy.units.Quantity`
+            Radial vector from the surface to the light source.
+
+        ro : `sbpy.units.Quantity`
+            Radial vector from the surface to the observer.
+
+        """
 
         n_hat = np.linalg.norm(n.value)
         rs_hat = np.linalg.norm(rs.value)
@@ -118,10 +142,9 @@ class Surface(abc.ABC):
 
         i = np.arccos(np.dot(n_hat, rs_hat))
         e = np.arccos(np.dot(n_hat, ro_hat))
-        alpha = np.arccos(np.dot(rs_hat, ro_hat))
-        delta2 = np.dot(ro, ro)
+        phi = np.arccos(np.dot(rs_hat, ro_hat))
 
-        return F_i * self.reflectance(i, e, alpha) / u.sr
+        return F_i * self.reflectance(i, e, phi) / u.sr
 
 
 class LambertianSurface(Surface):
@@ -172,12 +195,40 @@ class SurfaceReflectance(Surface):
         n: np.ndarray[3],
         rs: u.Quantity["length"],
         ro: u.Quantity["length"],
-        F_i: Optional[SpectralFluxDensityQuantity] = None,
     ) -> SpectralFluxDensityQuantity:
 
         sun = Sun.from_default()
         F_i = sun.observe(wave_freq)
         return super().radiance(F_i, n, rs, ro)
+
+
+class SurfaceThermalEmission(Surface):
+    """Thermal emission from a surface illuminated by sunlight."""
+
+    @u.quantity_input
+    def radiance(
+        self,
+        wave_freq: SpectralQuantity,
+        n: np.ndarray[3],
+        rs: u.Quantity["length"],
+        ro: u.Quantity["length"],
+        unit: UnitLike = "W/(m2 um)",
+    ) -> SpectralFluxDensityQuantity:
+
+        n_hat = np.linalg.norm(n.value)
+        rs_hat = np.linalg.norm(rs.value)
+        ro_hat = np.linalg.norm(ro.value)
+
+        i = np.arccos(np.dot(n_hat, rs_hat))
+        e = np.arccos(np.dot(n_hat, ro_hat))
+        phi = np.arccos(np.dot(rs_hat, ro_hat))
+
+        rh2 = np.dot(rs, rs)
+        sun = const.L / (4 * pi * rh2)
+        epsilon = self.phys["emissivity"]
+        T = (self.absorptance(i) * sun / epsilon / const.sigma_sb) ** (1 / 4)
+
+        return epsilon * BlackBody1D(temperature=T) * self.emittance(e, phi)
 
     # @u.quantity_input()
     # def surface_radiance(
