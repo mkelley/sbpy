@@ -41,7 +41,6 @@ from .. import data as sbd
 from ..spectroscopy.sources import SinglePointSpectrumError
 from ..exceptions import RequiredPackageUnavailable, OptionalPackageUnavailable, SbpyWarning
 
-
 VEGA = u.def_unit(['VEGA', 'VEGAflux'],
                   doc='Spectral flux density of Vega.')
 
