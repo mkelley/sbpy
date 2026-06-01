@@ -1,8 +1,7 @@
 # HB BC filter
 # Farnham et al. 2000
 # 17: 3/7/97, 9:16:14
-wave    transmission
------   ------------
+wave	transmission
 430.0	0.0040
 430.1	0.0035
 430.2	0.0035

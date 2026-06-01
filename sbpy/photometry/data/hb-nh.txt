@@ -1,8 +1,7 @@
 # HB NH filter
 # Farnham et al. 2000
 # X: 3/6/97, 17:29:58
-wave    transmission
------   ------------
+wave	transmission
 330.0	0.0444
 330.1	0.0467
 330.2	0.0587

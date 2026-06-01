@@ -1,8 +1,7 @@
 # HB RC filter
 # Farnham et al. 2000
 # X: 3/6/97, 17:40:22
-wave    transmission
------   ------------
+wave	transmission
 700.0	0.0012
 700.1	0.0001
 700.2	0.0024

@@ -1,8 +1,7 @@
 # HB CO+ filter
 # Farnham et al. 2000
 # X: 3/6/97, 18:03:16
-wave    transmission
------   ------------
+wave	transmission
 420.0	0.0086
 420.1	0.0116
 420.2	0.0159

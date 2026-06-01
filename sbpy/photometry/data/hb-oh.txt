@@ -1,8 +1,7 @@
 # HB OH filter
 # Farnham et al. 2000
 # X: 3/14/97, 13:34:21
-wave    transmission
------   ------------
+wave	transmission
 300.0     0.0001
 301.0     0.0005
 302.0     0.0068

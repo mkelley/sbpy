@@ -1,8 +1,7 @@
 # HB CN filter
 # Farnham et al. 2000
 # 5: 3/13/97, 16:28:23
-wave    transmission
------   ------------
+wave	transmission
 380.0	0.0048
 380.1	0.0048
 380.2	0.0083

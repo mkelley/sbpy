@@ -1,8 +1,7 @@
 # HB H2O+ filter
 # Farnham et al. 2000
 # X: 3/6/97, 17:45:31
-wave    transmission
------   ------------
+wave	transmission
 680.0	0.0023
 680.1	0.0030
 680.2	0.0025

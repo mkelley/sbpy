@@ -1,8 +1,7 @@
 # HB UC filter
 # Farnham et al. 2000
 # X: 3/6/97, 18:05:10
-wave    transmission
------   ------------
+wave	transmission
 330.0	-0.0021
 330.1	-0.0037
 330.2	-0.0022

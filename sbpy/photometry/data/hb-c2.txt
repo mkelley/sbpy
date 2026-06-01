@@ -1,8 +1,7 @@
 # HB C2 filter
 # Farnham et al. 2000
 # 5: 3/7/97, 9:39:55
-wave    transmission
------   ------------
+wave	transmission
 500.0	0.0054
 500.1	0.0064
 500.2	0.0055

@@ -1,8 +1,7 @@
 # HB C3 filter
 # Farnham et al. 2000
 # 20: 3/13/97, 16:32:33
-wave    transmission
------   ------------
+wave	transmission
 400.0	0.0763
 400.1	0.0947
 400.2	0.1165
