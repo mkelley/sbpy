@@ -218,17 +218,6 @@ def bandpass(name):
         "ps1 w": "nm",
         "ps1 z": "nm",
         "ps1 y": "nm",
-        "hb oh": "nm",
-        "hb nh": "nm",
-        "hb uc": "nm",
-        "hb cn": "nm",
-        "hb c3": "nm",
-        "hb co+": "nm",
-        "hb bc": "nm",
-        "hb c2": "nm",
-        "hb gc": "nm",
-        "hb h2o+": "nm",
-        "hb rc": "nm",
     }
 
     fn = get_pkg_data_path(
