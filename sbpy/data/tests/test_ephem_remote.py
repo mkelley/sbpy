@@ -314,8 +314,8 @@ class TestEphemFromMPC:
 
 @pytest.mark.remote_data
 @pytest.mark.skipif(
-    astroquery_version < Version("0.4.12.dev10856"),
-    reason="requires updated MIRIADE service",
+    astroquery_version < Version("0.4.12"),
+    reason="requires astroquery 0.4.12",
 )
 class TestEphemFromMiriade:
     def test_singleobj_now(self):

@@ -102,8 +102,8 @@ class TestEphemCLI:
                 "miriade",
                 "Ceres",
                 marks=pytest.mark.skipif(
-                    astroquery_version < Version("0.4.12.dev10856"),
-                    reason="requires updated MIRIADE service",
+                    astroquery_version < Version("0.4.12"),
+                    reason="requires astroquery 0.4.12",
                 ),
             ),
         ],
@@ -135,8 +135,8 @@ class TestEphemCLI:
                 "miriade",
                 "2P",
                 marks=pytest.mark.skipif(
-                    astroquery_version < Version("0.4.12.dev10856"),
-                    reason="requires updated MIRIADE service",
+                    astroquery_version < Version("0.4.12"),
+                    reason="requires astroquery 0.4.12",
                 ),
             ),
         ],
