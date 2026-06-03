@@ -100,7 +100,12 @@ class TestEphemCLI:
         cli = EphemerisCLI(cmd.split())
 
         assert cli.eph["date"][0].iso == "2024-08-16 00:00:00.000"
-        assert cli.eph.meta["target"] == target
+
+        if service == "miriade":
+            # 2026 Jun 3: current astroquery (0.4.12.dev529+gc3e973f8b) does not return the target
+            assert "target" not in cli.eph.meta
+        else:
+            assert cli.eph.meta["target"] == target
 
     @pytest.mark.parametrize(
         "service, target",
@@ -117,4 +122,9 @@ class TestEphemCLI:
         cli = EphemerisCLI(cmd.split())
 
         assert cli.eph["date"][0].iso == "2024-08-16 00:00:00.000"
-        assert cli.eph.meta["target"] == target
+
+        if service == "miriade":
+            # 2026 Jun 3: current astroquery (0.4.12.dev529+gc3e973f8b) does not return the target
+            assert "target" not in cli.eph.meta
+        else:
+            assert cli.eph.meta["target"] == target
