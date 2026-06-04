@@ -12,7 +12,7 @@ try:
 
     astroquery_version = Version(astroquery.__version__)
 except ImportError:
-    astroquery_version = None
+    astroquery_version = Version("0")
 
 from ..ephem.cli import EphemerisCLI
 from .test_ephem import patch_request  # noqa: F401

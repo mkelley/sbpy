@@ -16,7 +16,7 @@ try:
 
     astroquery_version = Version(astroquery.__version__)
 except ImportError:
-    astroquery_version = None
+    astroquery_version = Version("0")
 
 from ... import bib
 from ..core import QueryError
