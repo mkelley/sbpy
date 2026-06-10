@@ -223,12 +223,20 @@ class Obs(Ephem):
             else:
                 all_eph = vstack([all_eph, eph.table])
 
-        # identify field names that both obs and eph have in common
-        fieldnames_intersect = set(all_eph.columns).intersection(all_obs.columns)
-        for fieldname in fieldnames_intersect:
-            if modify_fieldnames == "obs":
-                all_obs.rename_column(fieldname, fieldname + "_obs")
-            elif modify_fieldnames == "eph":
-                all_eph.rename_column(fieldname, fieldname + "_eph")
+        # promote to sbpy objects to normalize field names
+        all_obs = Obs.from_table(all_obs, meta=self.meta)
+        all_eph = Ephem.from_table(all_eph)
 
-        return Obs.from_table(hstack([all_obs, all_eph]), meta=self.meta)
+        # insert eph columns into obs, renaming conflicts as requested
+        for k in all_eph.field_names:
+            name = k
+            if name in all_obs:
+                if modify_fieldnames == "obs":
+                    all_obs[name].name = name + "_obs"
+                elif modify_fieldnames == "eph":
+                    name = k + "_eph"
+                else:
+                    raise ValueError(f"Invalid modify_fieldnames={modify_fieldnames}")
+            all_obs[name] = all_eph[k]
+
+        return all_obs
