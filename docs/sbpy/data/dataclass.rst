@@ -399,7 +399,7 @@ and columns, and stacking a ``DataClass`` with another ``DataClass`` object or
 an `~astropy.table.Table` object.
 
 Update column data
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 
 Individual elements, entire rows, and columns can be modified by
 directly addressing them:
@@ -411,7 +411,7 @@ directly addressing them:
     <Quantity [10.323423, 10.333453, 10.343452] deg>
 
 Add a new row
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 Let's assume you want to add some more observations to your ``obs``
 object:
@@ -430,7 +430,7 @@ object:
   
 
 Add a new column
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 
 If you want to add a column to your object:
 
@@ -461,7 +461,7 @@ The same result can be achieved using the following syntax:
      10.25546  -12.3946 2451523.94653      i       i
 
 Joining objects by vertical stacking
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you want to vertically stack two observation tables into a single object:
 
@@ -494,7 +494,7 @@ decide how to process the different sets of columns.  See
 
 
 Joining objects by horizontal stacking
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Simiarly, to append the columns from another data object, use the
 `~sbpy.data.DataClass.hstack` method:
@@ -520,7 +520,7 @@ Simiarly, to append the columns from another data object, use the
 
 
 Modify the underlying table
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Because the underlying `~astropy.table.QTable` can be exposed by the
 `~sbpy.data.DataClass.table` property, it is possible to modify the data
@@ -528,6 +528,7 @@ table by directly accessing the underlying `~astropy.table.QTable` object.
 However, this is not generally advised.  You should use the mechanisms provided
 by `~sbpy.data.DataClass` to manipulate the data table as much as possible
 to maintain the integrity of the data table.
+
 
 Additional Data Container Concepts
 ==================================
