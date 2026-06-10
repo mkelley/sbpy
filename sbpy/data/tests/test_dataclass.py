@@ -723,7 +723,7 @@ def test_vstack():
 
 
 def test_hstack():
-    # hstack without conflicts
+    # hstack with DataClass without conflicts
     rh = [1, 2, 3] * u.au
     delta = [1, 2, 3] * u.au
     phase = [60, 30, 15] * u.deg
@@ -735,10 +735,19 @@ def test_hstack():
     assert u.allclose(data1["delta"], delta)
     assert u.allclose(data1["phase"], phase)
 
-    # hstack with conflicts
-    data3 = DataClass.from_dict({"r": rh * 2})
-    data1.hstack(data3)
+    # hstack with dict input with conflicts
+    data1.hstack({"r": rh * 2})
 
     assert u.allclose(data1["rh_1"], rh)
     assert u.allclose(data1["rh_2"], rh * 2)
     assert u.allclose(data1["delta"], delta)
+
+    # hstack with Table input
+    data1.hstack(QTable({"delta": delta * 2}))
+
+    assert u.allclose(data1["delta_1"], delta)
+    assert u.allclose(data1["delta_2"], delta * 2)
+
+    # hstack with bad input
+    with pytest.raises(ValueError):
+        data1.hstack(rh)
